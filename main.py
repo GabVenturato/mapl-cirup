@@ -20,6 +20,9 @@ def main(argv):
 
     ddc.value_iteration(discount=0.9, error=0.1)
     # ddc.value_iteration(horizon=3)
+
+    print("Value iteration time: %s" % ddc.value_iteration_time())
+    print("Total time: %s" % ddc.tot_time())
     print('\nNumber of iterations: ' + str(ddc.iterations()) + '\n')
     ddc.print_explicit_policy()
 

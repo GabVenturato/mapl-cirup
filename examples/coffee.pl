@@ -8,36 +8,36 @@
 state_variables(huc, hrc, wet, raining, umbrella, office).
 
 %% Model
-1.0::x(raining) :- raining.
-0.0::x(rainint) :- \+raining.
+0.75::x(raining) :- raining.
+0.3::x(raining) :- \+raining.
 
 %% Transition
 % move
-x(wet) :- wet, move.
-0.1::x(wet) :- \+wet, raining, umbrella, move.
-0.9::x(wet) :- \+wet, raining, \+umbrella, move.
-0.1::x(office) :- office, move.
-0.9::x(office) :- \+office, move.
+0.99::x(wet) :- wet, move.
+0.13::x(wet) :- \+wet, raining, umbrella, move.
+0.93::x(wet) :- \+wet, raining, \+umbrella, move.
+0.02::x(office) :- office, move.
+0.95::x(office) :- \+office, move.
 
 % delc
-x(huc) :- huc, delc.
-0.8::x(huc) :- \+huc, hrc, office, delc.
-0.1::x(hrc) :- hrc, office, delc.
-0.2::x(hrc) :- hrc, \+office, delc.
+0.99::x(huc) :- huc, delc.
+0.83::x(huc) :- \+huc, hrc, office, delc.
+0.05::x(hrc) :- hrc, office, delc.
+0.68::x(hrc) :- hrc, \+office, delc.
 
 % getu
 x(umbrella) :- umbrella, getu.
-0.9::x(umbrella) :- \+umbrella, office, getu.
+0.81::x(umbrella) :- \+umbrella, office, getu.
 
 % buyc
 x(hrc) :- hrc, buyc.
-0.9::x(hrc) :- \+hrc, \+office, buyc.
+0.98::x(hrc) :- \+hrc, \+office, buyc.
 
 %% Reward
 r0 :- huc, wet.
 r1 :- huc, \+wet.
 r3 :- \+huc, \+wet.
 
-utility(r0, 0.9).
-utility(r1, 1).
-utility(r3, 0.1).
+utility(r0, 3).
+utility(r1, 5).
+utility(r3, -2).

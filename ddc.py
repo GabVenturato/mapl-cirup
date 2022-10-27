@@ -39,6 +39,7 @@ class DDC:
     _utilities: Dict[Term, List[Term]] = {}                     # added (expected) utility parameters with their state
     _labels: Dict[int, pn_weight] = {}                          # label function for che circuit
     _iterations_count: int = 0                                  # number of iterations for policy convergence
+    _vi_time = None                                             # time required for value iteration
 
     def __init__(self, filename):
         """
@@ -259,6 +260,7 @@ class DDC:
             return And(terms.pop(), DDC.big_and(terms))
 
     def value_iteration(self, discount: float = None, error: float = None, horizon: int = None) -> None:
+        starttime_vi = time.time()
         self._labels = self._init_utility()
 
         if discount is not None:
@@ -283,6 +285,9 @@ class DDC:
             if self._discount < 1:  # loop until convergence
                 if delta <= self._error * (1-self._discount) / self._discount:
                     break
+
+        endtime_vi = time.time()
+        self._vi_time = endtime_vi - starttime_vi
 
     def _init_utility(self) -> Dict[int, pn_weight]:
         labels: Dict[int, pn_weight] = dict()
@@ -480,6 +485,12 @@ class DDC:
         Returns the amount of time required for compilation.
         """
         return self._minimize_time
+
+    def value_iteration_time(self) -> float:
+        return self._vi_time
+
+    def tot_time(self) -> float:
+        return self._compile_time + self._minimize_time + self._vi_time
 
     def view_dot(self) -> None:
         """
