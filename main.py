@@ -1,7 +1,7 @@
 import sys
 
 from problog.util import init_logger
-from ddc import DDC
+from mapl_cirup import MaplCirup
 
 MAX_ACTS = 10   # Max number of steps in the online algorithm
 
@@ -12,19 +12,19 @@ def main(argv):
     input_file = args.inputfile
     init_logger(args.verbose)
 
-    ddc: DDC = DDC(input_file)
+    mc: MaplCirup = MaplCirup(input_file)
 
-    print("Compile time: %s" % ddc.compile_time())
-    print("Minimize time: %s" % ddc.minimize_time())
-    print("Circuit size: %s" % ddc.size())
+    print("Compile time: %s" % mc.compile_time())
+    print("Minimize time: %s" % mc.minimize_time())
+    print("Circuit size: %s" % mc.size())
 
-    ddc.value_iteration(discount=0.9, error=0.1)
-    # ddc.value_iteration(horizon=3)
+    mc.value_iteration(discount=0.9, error=0.1)
+    # mc.value_iteration(horizon=3)
 
-    print("Value iteration time: %s" % ddc.value_iteration_time())
-    print("Total time: %s" % ddc.tot_time())
-    print('\nNumber of iterations: ' + str(ddc.iterations()) + '\n')
-    ddc.print_explicit_policy()
+    print("Value iteration time: %s" % mc.value_iteration_time())
+    print("Total time: %s" % mc.tot_time())
+    print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')
+    mc.print_explicit_policy()
 
 
 def argparser():
