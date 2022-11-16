@@ -20,6 +20,7 @@ from problog.engine import DefaultEngine
 from problog.sdd_formula_explicit import SDDExplicit, x_constrained_named
 
 from semiring import SemiringMAXEU, SemiringActiveUtilities, pn_weight
+from ddc import DDC
 
 
 class MaplCirup:
@@ -69,10 +70,14 @@ class MaplCirup:
 
         print("Minimizing...")
         starttime_minimization = time.time()
-        self._minimize()
+        # self._minimize()
         endtime_minimization = time.time()
         self._minimize_time = endtime_minimization - starttime_minimization
         print("Minimization done! (circuit size: %s)" % self.size())
+
+        self._ddc: DDC = DDC.create_from(self._circuit, self._rewards)
+        print("DDC size: %s" % self._ddc.size())
+        # self._ddc.view_dot()
 
         self._semiring = self._get_semiring()
 
