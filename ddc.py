@@ -49,7 +49,7 @@ class DDC:
                     literal_id2name[inode_index] = [str(name)]
 
         # Create DDC from SDD
-        ddc._root = ddc._compact_sdd(root, literal_id2name)
+        ddc._root = ddc._compact_sdd(root, literal_id2name, dict())
 
         # Init labelling function
         weights: Dict[int, Term] = dict(sdd.get_weights())
@@ -89,7 +89,9 @@ class DDC:
 
         return ddc
 
-    def _compact_sdd(self, node: SddNode, lit_name_map: Dict[int, List[str]]) -> int:
+    def _compact_sdd(self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]) -> int:
+        if node.id in visited:
+            return visited[node.id]
         if node.is_literal():
             # A probabilistic rule '0.5::a :- b.' is split into:
             # a :- b, choice(x,g,a).
@@ -115,6 +117,7 @@ class DDC:
             self._children.append([])
             self._type.append(NodeType.LITERAL)
             node_id: int = len(self._children) - 1
+            visited[node.id] = node_id
 
             # update the var2node mapping
             for var_name in var_names:
@@ -139,10 +142,11 @@ class DDC:
         elif node.is_decision():
             or_children = []
             for (prime, sub) in node.elements():
-                sub_node = self._compact_sdd(sub, lit_name_map)
+                # TODO AND nodes are apparently not cached..?
+                sub_node = self._compact_sdd(sub, lit_name_map, visited)
                 if sub_node != self._false:
-                    prime_node = self._compact_sdd(prime, lit_name_map)
-                    # TODO check if prime node is false?
+                    prime_node = self._compact_sdd(prime, lit_name_map, visited)
+                    assert prime_node != self._false, "Vincent was wrong: prime can be false."
                     # Create AND node
                     self._children.append([sub_node, prime_node])
                     self._type.append(NodeType.AND)
@@ -155,7 +159,9 @@ class DDC:
             else:
                 self._children.append(or_children)
                 self._type.append(NodeType.OR)
-                return len(self._children) - 1
+                node_id = len(self._children) - 1
+                visited[node.id] = node_id
+                return node_id
 
         else:
             raise TypeError('Unknown type for node %s' % node)
