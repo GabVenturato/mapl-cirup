@@ -314,29 +314,45 @@ class DDC:
     def size(self) -> int:
         return len(self._children)
 
-    def maxeu(self) -> Label:
-        return self.evaluate(MaxEUSemiring(self._decisions))
+    def _evidence_to_label(self, var: str, value: bool) -> (int, Label):
+        # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
+        node_index = self._var2node[var]
+        node_id = node_index.pos if value else node_index.neg
+        label = self._label[node_id]
+        return node_id, Label(0.0, label.util, label.dec)
 
-    def evaluate(self, semiring: MaxEUSemiring) -> Label:
+    def maxeu(self, state: Dict[str, bool]) -> Label:
+        return self.evaluate(MaxEUSemiring(self._decisions), state)
+
+    def evaluate(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
         self._semiring = semiring
-        return self._evaluate_node(self._root)
 
-    def _evaluate_node(self, node: int) -> Label:
+        evidence_label: Dict[int, Label] = dict()
+        if evidence is not None:
+            for var, value in evidence.items():
+                node, label = self._evidence_to_label(var, value)
+                evidence_label[node] = label
+
+        return self._evaluate_node(self._root, evidence_label)
+
+    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
         if self._type[node] == NodeType.TRUE:
             return self._semiring.one()
         elif self._type[node] == NodeType.LITERAL:
+            if evidence_label is not None and node in evidence_label:
+                return evidence_label[node]
             return self._label[node]
         elif self._type[node] == NodeType.OR:
             total = self._semiring.zero()
             for child in self._children[node]:
-                child_eval = self._evaluate_node(child)
+                child_eval = self._evaluate_node(child, evidence_label)
                 new_total = self._semiring.plus(total, child_eval)
                 total = new_total
             return total
         elif self._type[node] == NodeType.AND:
             total = self._semiring.one()
             for child in self._children[node]:
-                child_eval = self._evaluate_node(child)
+                child_eval = self._evaluate_node(child, evidence_label)
                 new_total = self._semiring.times(total, child_eval)
                 total = new_total
             return total

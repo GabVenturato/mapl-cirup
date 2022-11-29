@@ -77,8 +77,8 @@ class MaplCirup:
 
         self._ddc: DDC = DDC.create_from(self._circuit, self._rewards)
         print("DDC size: %s" % self._ddc.size())
-        (p, eu, dec) = self._ddc.maxeu()
-        self._ddc.view_dot()  # TODO Why if I do this before maxeu() it changes the result??
+        (p, eu, dec) = self._ddc.maxeu({'hit': True})
+        # self._ddc.view_dot()  # TODO Why if I do this before maxeu() it changes the result??
         print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
 
         self._semiring = self._get_semiring()
