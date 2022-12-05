@@ -16,26 +16,30 @@ VarIndex = namedtuple('VarIndex', 'pos, neg')
 
 
 class MaxEUSemiring:
+    MaxEULabel = namedtuple('MaxEULabel', 'prob, eu, dec')
+
     _empty_set = set()
 
     def __init__(self, decisions):
-        self.val_zero = Label(0.0, 0.0, decisions)
+        self.val_zero = MaxEUSemiring.MaxEULabel(0.0, 0.0, decisions)
         self.zero_decision_length = len(decisions)
 
     def one(self):
-        return Label(1.0, 0.0, self._empty_set)
+        return MaxEUSemiring.MaxEULabel(1.0, 0.0, self._empty_set)
 
     def zero(self):
         return self.val_zero
 
-    def plus(self, a: Label, b: Label):
+    def plus(self, a: MaxEULabel, b: MaxEULabel):
         p_a, eu_a, d_a = a
         p_b, eu_b, d_b = b
         if len(d_a) or len(d_b):
-            # Max
-            if len(d_b) == self.zero_decision_length:  # avoid false
+            # Max: since all the decisions are on top (X-constrained SDDs), as long as there is some decisions, it means
+            # we have to maximise. Because of the smoothness of the circuit we know the two sets are different.
+            # This is more efficient than checking if the two sets are different.
+            if len(d_b) == self.zero_decision_length:
                 result = a
-            elif len(d_a) == self.zero_decision_length:  # avoid false
+            elif len(d_a) == self.zero_decision_length:
                 result = b
             elif p_a == 0:
                 result = b
@@ -46,21 +50,30 @@ class MaxEUSemiring:
             else:
                 result = b
             print("max( (%s, %s, %s), (%s, %s, %s) ) = (%s, %s, %s)" %
-                  (a.prob, a.util, a.dec, b.prob, b.util, b.dec, result.prob, result.util, result.dec))
+                  (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, result.prob, result.eu, result.dec))
             return result
         else:
             # Sum
-            print("(%s, %s, %s) + (%s, %s, %s) ) = (%s, %s, %s)" %
-                  (a.prob, a.util, a.dec, b.prob, b.util, b.dec, p_a + p_b, eu_a + eu_b, self._empty_set))
-            return Label(p_a + p_b, eu_a + eu_b, self._empty_set)
+            print("(%s, %s, %s) + (%s, %s, %s) = (%s, %s, %s)" %
+                  (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, p_a + p_b, eu_a + eu_b, self._empty_set))
+            return MaxEUSemiring.MaxEULabel(p_a + p_b, eu_a + eu_b, self._empty_set)
 
-    def times(self, a: Label, b: Label):
+    @staticmethod
+    def times(a: MaxEULabel, b: MaxEULabel):
         p_a, eu_a, d_a = a
         p_b, eu_b, d_b = b
         eu_n = p_a * eu_b + p_b * eu_a
-        print("(%s, %s, %s) * (%s, %s, %s) ) = (%s, %s, %s)" %
-              (a.prob, a.util, a.dec, b.prob, b.util, b.dec, p_a * p_b, eu_n, d_a.union(d_b)))
-        return Label(p_a * p_b, eu_n, d_a.union(d_b))
+        print("(%s, %s, %s) * (%s, %s, %s) = (%s, %s, %s)" %
+              (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, p_a * p_b, eu_n, d_a.union(d_b)))
+        return MaxEUSemiring.MaxEULabel(p_a * p_b, eu_n, d_a.union(d_b))
+
+    @staticmethod
+    def value(a: Label) -> MaxEULabel:
+        return MaxEUSemiring.MaxEULabel(a.prob, a.prob * a.util, a.dec)
+
+    @staticmethod
+    def normalise(a: MaxEULabel, z: MaxEULabel) -> MaxEULabel:
+        return MaxEUSemiring.MaxEULabel(a.prob / z.prob, a.eu / z.prob, a.dec)
 
 
 class DDC:
@@ -83,8 +96,9 @@ class DDC:
         self._label[0] = Label(1, 0, set())  # set label for True
 
     @classmethod
-    def create_from(cls, sdd: SDDExplicit, rewards: Dict[Term, Constant]):
+    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
         root: SddNode = sdd.get_root_inode()
+        str_state_vars: List[str] = [str(x) for x in state_vars]
 
         ddc = cls()
 
@@ -103,8 +117,13 @@ class DDC:
         ddc._root = ddc._compact_sdd(root, literal_id2name, dict())
 
         # Init labelling function
-        weights: Dict[int, Term] = dict(sdd.get_weights())
+        # set neutral prior weights
+        for var in str_state_vars:
+            ddc._set_positive_label(var, Label(1.0, 0.0, set()))
+            ddc._set_negative_label(var, Label(1.0, 0.0, set()))
 
+        # set all the other weights from the SDD
+        weights: Dict[int, Term] = dict(sdd.get_weights())
         for key in weights:
             index = sdd.atom2var.get(abs(key), -1)
             if isinstance(weights[key], bool) and weights[key] is True:
@@ -296,10 +315,14 @@ class DDC:
     def _set_pn_labels(self, var: str, positive: bool, label: Label):
         if positive:
             self._set_positive_label(var, label)
-            self._set_negative_label(var, Label(1-label.prob, label.util, label.dec))
+            if self._var2node[var].neg not in self._label:
+                # If the complement is not in the labelling function already, insert it
+                self._set_negative_label(var, Label(1-label.prob, label.util, label.dec))
         else:
             self._set_negative_label(var, label)
-            self._set_positive_label(var, Label(1-label.prob, label.util, label.dec))
+            if self._var2node[var].pos not in self._label:
+                # If the complement is not in the labelling function already, insert it
+                self._set_positive_label(var, Label(1-label.prob, label.util, label.dec))
 
     def _update_util_positive_label(self, var: str, util: float):
         index = self._var2node[var]
@@ -317,14 +340,14 @@ class DDC:
     def _evidence_to_label(self, var: str, value: bool) -> (int, Label):
         # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
         node_index = self._var2node[var]
-        node_id = node_index.pos if value else node_index.neg
+        node_id = node_index.neg if value else node_index.pos
         label = self._label[node_id]
         return node_id, Label(0.0, label.util, label.dec)
 
-    def maxeu(self, state: Dict[str, bool]) -> Label:
+    def maxeu(self, state: Dict[str, bool] = None) -> MaxEUSemiring.MaxEULabel:
         return self.evaluate(MaxEUSemiring(self._decisions), state)
 
-    def evaluate(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
+    def evaluate(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> MaxEUSemiring.MaxEULabel:
         self._semiring = semiring
 
         evidence_label: Dict[int, Label] = dict()
@@ -333,27 +356,23 @@ class DDC:
                 node, label = self._evidence_to_label(var, value)
                 evidence_label[node] = label
 
-        return self._evaluate_node(self._root, evidence_label)
+        ddc_eval = self._evaluate_node(self._root, evidence_label)
+        return semiring.normalise(ddc_eval, ddc_eval)
 
-    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
+    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> MaxEUSemiring.MaxEULabel:
         if self._type[node] == NodeType.TRUE:
             return self._semiring.one()
         elif self._type[node] == NodeType.LITERAL:
             if evidence_label is not None and node in evidence_label:
-                return evidence_label[node]
-            return self._label[node]
-        elif self._type[node] == NodeType.OR:
-            total = self._semiring.zero()
-            for child in self._children[node]:
+                return self._semiring.value(evidence_label[node])
+            return self._semiring.value(self._label[node])
+        elif self._type[node] == NodeType.OR or self._type[node] == NodeType.AND:
+            assert len(self._children[node]) > 0, "There is an AND/OR node with no children"
+            total = self._evaluate_node(self._children[node][0], evidence_label)
+            for child in self._children[node][1:]:
                 child_eval = self._evaluate_node(child, evidence_label)
-                new_total = self._semiring.plus(total, child_eval)
-                total = new_total
-            return total
-        elif self._type[node] == NodeType.AND:
-            total = self._semiring.one()
-            for child in self._children[node]:
-                child_eval = self._evaluate_node(child, evidence_label)
-                new_total = self._semiring.times(total, child_eval)
+                new_total = self._semiring.plus(total, child_eval) if self._type[node] == NodeType.OR \
+                    else self._semiring.times(total, child_eval)
                 total = new_total
             return total
 
@@ -363,11 +382,5 @@ class NodeType(Enum):
     LITERAL = 2
     AND = 3
     OR = 4
-
-# class Label:
-#     def __init__(self, prob: float, util: float, dec: Set[str]):  # TODO float must be changed to some Numpy format
-#         self._prob = prob
-#         self._util = util
-#         self._dec = dec
 
 

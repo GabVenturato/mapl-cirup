@@ -75,10 +75,10 @@ class MaplCirup:
         self._minimize_time = endtime_minimization - starttime_minimization
         print("Minimization done! (circuit size: %s)" % self.size())
 
-        self._ddc: DDC = DDC.create_from(self._circuit, self._rewards)
+        self._ddc: DDC = DDC.create_from(self._circuit, self._state_vars, self._rewards)
         print("DDC size: %s" % self._ddc.size())
-        (p, eu, dec) = self._ddc.maxeu({'hit': True})
-        # self._ddc.view_dot()  # TODO Why if I do this before maxeu() it changes the result??
+        (p, eu, dec) = self._ddc.maxeu({'hit': True})  # {'hit': False}
+        self._ddc.view_dot()  # TODO Why if I do this before maxeu() it changes the result??
         print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
 
         self._semiring = self._get_semiring()
@@ -139,9 +139,12 @@ class MaplCirup:
     def _add_state_priors(self, parsed_prog: ClauseDB) -> None:
         for var in self._state_vars:
             new_var = copy.deepcopy(var)
-            if new_var.probability is None:
-                new_var.probability = Constant(0.5)
+            # new_neg_var = - copy.deepcopy(var)
+            if var.probability is None:
+                new_var.probability = Constant(1.0)
+                # new_neg_var.probability = Constant(1.0)
             parsed_prog.add_fact(new_var)
+            # parsed_prog.add_fact(new_neg_var)
 
     def _add_utility_parameters(self, parsed_prog: ClauseDB) -> None:
         """
