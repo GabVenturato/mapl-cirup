@@ -15,16 +15,20 @@ def main(argv):
     mc: MaplCirup = MaplCirup(input_file)
 
     print("Compile time: %s" % mc.compile_time())
-    print("Minimize time: %s" % mc.minimize_time())
+    # print("Minimize time: %s" % mc.minimize_time())
     print("Circuit size: %s" % mc.size())
 
+    # mc.value_iteration(discount=0.9, error=0.01)
     # mc.value_iteration(discount=0.9, error=0.1)
-    # mc.value_iteration(horizon=3)
+    # mc.value_iteration(discount=0.9)
+    mc.value_iteration(discount=0.9, horizon=39)
+    # mc.value_iteration(horizon=10)
+    # mc.value_iteration()  # = immediate reward
 
-    # print("Value iteration time: %s" % mc.value_iteration_time())
-    # print("Total time: %s" % mc.tot_time())
-    # print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')
-    # mc.print_explicit_policy()
+    print("Value iteration time: %s" % mc.value_iteration_time())
+    print("Total time: %s" % mc.tot_time())
+    print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')
+    mc.print_explicit_policy()
 
 
 def argparser():

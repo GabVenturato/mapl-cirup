@@ -2,24 +2,18 @@
 MArkov PLanning with CIRcuit bellman UPdates (mapl-cirup)
 """
 import copy
-import os
-import tempfile
-import re
 import time
-import graphviz
-import random
 
-from typing import Dict, Set, List
+from typing import Dict, List
 
 from problog import get_evaluatable
 from problog.clausedb import ClauseDB
 from problog.formula import LogicFormula
 from problog.logic import Term, Constant, Clause, Not, And
-from problog.program import PrologFile, PrologString
+from problog.program import PrologFile
 from problog.engine import DefaultEngine
 from problog.sdd_formula_explicit import SDDExplicit, x_constrained_named
 
-from semiring import SemiringMAXEU, SemiringActiveUtilities, pn_weight
 from ddc import DDC
 
 
@@ -34,15 +28,16 @@ class MaplCirup:
     _next_state_functor = 'x'                                   # Name of the functor used to indicate the next state
     _true_term = Term('true')                                   # True term used for querying
     _decision_term = Term("?")                                  # Decision term used for querying
-    _horizon = 1                                                # Default future lookahead
+    _horizon = 0                                                # Default future lookahead
     _discount = 1                                               # Default discount factor
     _error = 0.01                                               # Default maximum error allowed for value iteration
-    _utilities: Dict[Term, List[Term]] = {}                     # added (expected) utility parameters with their state
-    _labels: Dict[int, pn_weight] = {}                          # label function for che circuit
-    _iterations_count: int = 0                                  # number of iterations for policy convergence
-    _vi_time = None                                             # time required for value iteration
+    _utilities: Dict[Term, List[Term]] = {}                     # Added (expected) utility parameters with their state
+    _iterations_count: int = 0                                  # Number of iterations for policy convergence
+    _vi_time = None                                             # Time required for value iteration
+    _minimisation_on = False                                    # Activate the SDD minimisation
+    _minimize_time = 0                                          # Default minimisation time
 
-    def __init__(self, filename):
+    def __init__(self, filename, minimisation=False):
         """
         DDC initialization. The overall steps are the following:
             1. Parse the two input model
@@ -63,27 +58,40 @@ class MaplCirup:
 
         print("Compiling...")
         starttime_compilation = time.time()
-        self._circuit = self._compilation(grounded_prog)
+        sdd = self._compilation(grounded_prog)
+        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards)
         endtime_compilation = time.time()
         self._compile_time = endtime_compilation - starttime_compilation
         print("Compilation done! (circuit size: %s)" % self.size())
 
-        print("Minimizing...")
-        starttime_minimization = time.time()
-        self._minimize()
-        endtime_minimization = time.time()
-        self._minimize_time = endtime_minimization - starttime_minimization
-        print("Minimization done! (circuit size: %s)" % self.size())
+        if minimisation:
+            self._minimisation_on = True
+            print("Minimizing...")
+            starttime_minimization = time.time()
+            self._minimize()
+            endtime_minimization = time.time()
+            self._minimize_time = endtime_minimization - starttime_minimization
+            print("Minimization done! (circuit size: %s)" % self.size())
 
-        self._ddc: DDC = DDC.create_from(self._circuit, self._state_vars, self._rewards)
-        print("DDC size: %s" % self._ddc.size())
-        (p, eu, dec) = self._ddc.maxeu({'hit': True})  # {'hit': False}
-        self._ddc.view_dot()  # TODO Why if I do this before maxeu() it changes the result??
-        print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
-
-        self._semiring = self._get_semiring()
+        # (p, eu, dec) = self._ddc.maxeu()  # {'hit': False}
+        # print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
+        self._remove_impossible_states()
 
         return
+
+    def _remove_impossible_states(self):
+        imp_util = self._ddc.impossible_utilities()
+        print("\nImpossible states (%s/%s):" % (len(imp_util), 2 ** len(self._state_vars)))
+        to_remove = []
+        for u, state in self._utilities.items():
+            if str(u) in imp_util:
+                print(str(state))
+                to_remove.append(u)
+
+        for u in to_remove:
+            self._utilities.pop(u)
+
+        print()
 
     def _parsing(self, file_path="") -> ClauseDB:
         """
@@ -139,12 +147,9 @@ class MaplCirup:
     def _add_state_priors(self, parsed_prog: ClauseDB) -> None:
         for var in self._state_vars:
             new_var = copy.deepcopy(var)
-            # new_neg_var = - copy.deepcopy(var)
             if var.probability is None:
                 new_var.probability = Constant(1.0)
-                # new_neg_var.probability = Constant(1.0)
             parsed_prog.add_fact(new_var)
-            # parsed_prog.add_fact(new_neg_var)
 
     def _add_utility_parameters(self, parsed_prog: ClauseDB) -> None:
         """
@@ -223,18 +228,6 @@ class MaplCirup:
         self._circuit.get_root_inode().ref()
         self._circuit.get_manager().get_manager().minimize_limited()
 
-    def _get_semiring(self) -> (SemiringMAXEU, SemiringMAXEU):
-        """
-        Initialize the maximum expected utility semiring (MEU).
-        :return: The MEU semiring.
-        """
-        decisions_keys = set()
-        for decision in self._decisions:
-            decisions_keys.add(self._circuit.get_node_by_name(decision))
-        semiring = SemiringMAXEU(decisions_keys)
-
-        return semiring
-
     @staticmethod
     def enumeration_next(state: List[Term]) -> List[Term]:
         """
@@ -271,7 +264,6 @@ class MaplCirup:
 
     def value_iteration(self, discount: float = None, error: float = None, horizon: int = None) -> None:
         starttime_vi = time.time()
-        self._labels = self._init_utility()
 
         if discount is not None:
             self._discount = discount
@@ -283,186 +275,76 @@ class MaplCirup:
             self._horizon = horizon
 
         while True:
-            if self._discount == 1:  # loop for horizon length
+            if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
                     break
 
-            delta = self._update_utility(self._labels)
+            delta = self._update_utility()
             self._iterations_count += 1
 
             print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
 
-            if self._discount < 1:  # loop until convergence
-                if delta <= self._error * (1-self._discount) / self._discount:
-                    break
+            if self._discount < 1:
+                if horizon is not None:
+                    # if the horizon is set, loop for horizon length (with discount)
+                    if self._iterations_count >= self._horizon:
+                        break
+                else:
+                    # loop until convergence
+                    # since I compute delta as (U'[s]-U[s])*discount, I can avoid dividing by the discount here
+                    if delta <= self._error * (1-self._discount) / self._discount:
+                        break
 
         endtime_vi = time.time()
         self._vi_time = endtime_vi - starttime_vi
 
-    def _init_utility(self) -> Dict[int, pn_weight]:
-        labels: Dict[int, pn_weight] = dict()
-        weights: Dict[int, Term] = dict(self._circuit.get_weights())
-
-        # set label for True node
-        # use '%' as a placeholder name for terms in pn_weight because it can't come from the model
-        # TODO: Is this necessary?
-        labels[0] = pn_weight(Term('%', 1.0, Constant(0), set()), Term('%', 0.0, Constant(0), set()))
-
-        # set labels for the others, except reward and utility parameters
-        for key in weights:
-            abs_key = abs(key)
-            if isinstance(weights[key], Constant):  # probability
-                prob: float = weights[key].compute_value()
-                self._set_pn_weight(labels, key,
-                                    Term('%', prob, Constant(0), set()),
-                                    Term('%', 1 - prob, Constant(0), set()))
-
-            elif weights[key] == self._decision_term:  # decision
-                self._set_pn_weight(labels, key,
-                                    Term('%', 1.0, Constant(0), {abs_key}),
-                                    Term('%', 1.0, Constant(0), {-abs_key}))
-
-        # set labels for reward parameters
-        for r in self._rewards:
-            if isinstance(r, Not):
-                key = -self._circuit.get_node_by_name(r.args[0])
-            else:
-                key = self._circuit.get_node_by_name(r)
-
-            if key is None:  # if it is None it means r is not in the circuit
-                continue
-
-            if abs(key) in labels:   # update the label
-                MaplCirup._update_utility_label(labels, key, self._rewards[r].compute_value())
-            else:   # insert the label
-                self._set_pn_weight(labels, key,
-                                    Term('%', 1.0, Constant(self._rewards[r].compute_value()), set()),
-                                    Term('%', 1.0, Constant(0), set()))
-
-        # set labels for utility parameters (all zero at the beginning)
-        for u in self._utilities:
-            key = self._circuit.get_node_by_name(u)
-
-            if key is None:  # if it is None it means r is not in the circuit
-                continue
-
-            labels[abs(key)] = pn_weight(Term('%', 1.0, Constant(0), set()), Term('%', 1.0, Constant(0), set()))
-
-        return labels
-
-    @staticmethod
-    def _set_pn_weight(labels: Dict[int, pn_weight], key: int, pos_w: Term, neg_w: Term) -> None:
-        if key > 0:
-            labels[abs(key)] = pn_weight(pos_w, neg_w)
-        else:
-            labels[abs(key)] = pn_weight(neg_w, pos_w)
-
-    def _update_utility(self, labels: Dict[int, pn_weight]) -> float:
+    def _update_utility(self) -> float:
         # Compute the new utility values
-        updated_utilities: Dict[Term, float] = dict()
+        new_utilities: Dict[str, float] = dict()
 
         for u, state in self._utilities.items():
-            # collect evidence
-            evidence: Set[(Term, int, bool)] = set()
+            u_var = str(u)
+
+            # collect state evidence
+            state_evidence: Dict[str, bool] = dict()
             for term in state:
-                if isinstance(term, Not):
-                    term_key = self._circuit.get_node_by_name(term.args[0])
-                else:
-                    term_key = self._circuit.get_node_by_name(term)
-
-                clean_term = term.args[0] if isinstance(term, Not) else term
-                bool_term = False if isinstance(term, Not) else True
-                evidence.add((clean_term, term_key, bool_term))
-
-            # set the evidence
-            for term, key, val in evidence:
-                self._circuit.add_evidence(term, key, val)
+                term_var = str(term.args[0] if isinstance(term, Not) else term)
+                state_evidence[term_var] = False if isinstance(term, Not) else True
 
             # circuit evaluation
-            _, eu, _ = self._circuit.evaluate(
-                index=self._circuit.get_node_by_name(self._true_term),
-                semiring=self._semiring,
-                weights=labels
-            )
-            updated_utilities[u] = eu
-
-            # clear evidence
-            self._circuit.clear_evidence()
+            _, eu, _ = self._ddc.maxeu(state_evidence)
+            new_utilities[u_var] = eu
 
         # Update the label function
         utility_delta = 0
         for u in self._utilities:
-            key = self._circuit.get_node_by_name(u)
+            u_var = str(u)
 
-            pos_weight, neg_weight = labels[abs(key)]
-            old_utility_val = pos_weight.args[1].compute_value() if key > 0 else neg_weight.args[1].compute_value()
+            old_utility = self._ddc.get_utility_label(u_var)
+            new_utility = self._discount * new_utilities[u_var]
 
-            MaplCirup._update_utility_label(labels, key, self._discount * updated_utilities[u])
+            self._ddc.set_utility_label(u_var, new_utility)
 
-            pos_weight, neg_weight = labels[abs(key)]
-            new_utility_val = pos_weight.args[1].compute_value() if key > 0 else neg_weight.args[1].compute_value()
-
-            if abs(new_utility_val - old_utility_val) > utility_delta:
-                utility_delta = abs(new_utility_val - old_utility_val)
+            abs_diff = abs(new_utility - old_utility)
+            if abs_diff > utility_delta:
+                utility_delta = abs_diff
 
         return utility_delta
-
-    @staticmethod
-    def _update_utility_label(labels, key, val) -> None:
-        pos_weight, neg_weight = labels[abs(key)]
-        if key > 0:
-            pos_weight = Term('%',
-                              pos_weight.args[0],
-                              Constant(val),
-                              pos_weight.args[2]
-                              )
-        else:
-            neg_weight = Term('%',
-                              neg_weight.args[0],
-                              Constant(val),
-                              neg_weight.args[2]
-                              )
-        labels[abs(key)] = pn_weight(pos_weight, neg_weight)
 
     def print_explicit_policy(self) -> None:
         print("\nPOLICY FUNCTION:\n")
         state = self._state_vars
         while state:
-            # collect evidence
-            evidence: Set[(Term, int, bool)] = set()
+            # collect state evidence
+            state_evidence: Dict[str, bool] = dict()
             for term in state:
-                if isinstance(term, Not):
-                    term_key = self._circuit.get_node_by_name(term.args[0])
-                else:
-                    term_key = self._circuit.get_node_by_name(term)
-                clean_term = term.args[0] if isinstance(term, Not) else term
-                bool_term = False if isinstance(term, Not) else True
-                evidence.add((clean_term, term_key, bool_term))
+                term_var = str(term.args[0] if isinstance(term, Not) else term)
+                state_evidence[term_var] = False if isinstance(term, Not) else True
 
-            # set the evidence
-            for term, key, val in evidence:
-                self._circuit.add_evidence(term, key, val)
-
-            # circuit evaluation
-            _, eu, best_decision_keys = self._circuit.evaluate(
-                index=self._circuit.get_node_by_name(self._true_term),
-                semiring=self._semiring,
-                weights=self._labels
-            )
-
-            decisions = []
-            for decision in self._decisions:
-                decision_key = self._circuit.get_node_by_name(decision)
-                for best_key in best_decision_keys:
-                    if abs(best_key) == abs(decision_key):
-                        if best_key >= 0:
-                            decisions.append(decision)
+            _, eu, decisions = self._ddc.maxeu(state_evidence)
 
             print(str(state) + ' -> ' + str(decisions) + ' (eu: ' + str(eu) + ')')
             state = MaplCirup.enumeration_next(state)
-
-            # clear evidence
-            self._circuit.clear_evidence()
 
     def set_horizon(self, horizon: int) -> None:
         self._horizon = horizon
@@ -470,16 +352,11 @@ class MaplCirup:
     def set_discount_factor(self, discount: float) -> None:
         self._discount = discount
 
-    # def set_selection_limit(self, limit) -> None:
-    #     self._selection_limit = limit
-
     def size(self) -> int:
         """
-        Compute the size of the circuit. Where the size is the size of the live nodes in the SDD circuit.
-        For more info on "live nodes" see the advanced manual of the sdd package: http://reasoning.cs.ucla.edu/sdd/
-        :return: The size of the circuit
+        Returns the size of the circuit.
         """
-        return self._circuit.get_manager().get_manager().live_size()
+        return self._ddc.size()
 
     def iterations(self) -> int:
         return self._iterations_count
@@ -500,13 +377,10 @@ class MaplCirup:
         return self._vi_time
 
     def tot_time(self) -> float:
-        return self._compile_time + self._minimize_time + self._vi_time
+        return self._compile_time + self._minimize_time + (self._vi_time if self._vi_time is not None else 0)
 
     def view_dot(self) -> None:
         """
         View the dot representation of the transition circuit.
         """
-        self._circuit.get_manager().get_manager().garbage_collect()  # .minimize()
-        dot = self._circuit.sdd_to_dot(node=None, litnamemap=True)
-        b = graphviz.Source(dot)
-        b.view()
+        self._ddc.view_dot()

@@ -7,73 +7,13 @@ from enum import Enum
 from collections import namedtuple
 import graphviz
 
+from semiring import MaxEUSemiring, Label
+
 from problog.logic import Term, Constant, Not
 from problog.sdd_formula_explicit import SDDExplicit
 from pysdd.sdd import SddNode
 
-Label = namedtuple('Label', 'prob, util, dec')
 VarIndex = namedtuple('VarIndex', 'pos, neg')
-
-
-class MaxEUSemiring:
-    MaxEULabel = namedtuple('MaxEULabel', 'prob, eu, dec')
-
-    _empty_set = set()
-
-    def __init__(self, decisions):
-        self.val_zero = MaxEUSemiring.MaxEULabel(0.0, 0.0, decisions)
-        self.zero_decision_length = len(decisions)
-
-    def one(self):
-        return MaxEUSemiring.MaxEULabel(1.0, 0.0, self._empty_set)
-
-    def zero(self):
-        return self.val_zero
-
-    def plus(self, a: MaxEULabel, b: MaxEULabel):
-        p_a, eu_a, d_a = a
-        p_b, eu_b, d_b = b
-        if len(d_a) or len(d_b):
-            # Max: since all the decisions are on top (X-constrained SDDs), as long as there is some decisions, it means
-            # we have to maximise. Because of the smoothness of the circuit we know the two sets are different.
-            # This is more efficient than checking if the two sets are different.
-            if len(d_b) == self.zero_decision_length:
-                result = a
-            elif len(d_a) == self.zero_decision_length:
-                result = b
-            elif p_a == 0:
-                result = b
-            elif p_b == 0:
-                result = a
-            elif eu_a / p_a >= eu_b / p_b:  # check on eu
-                result = a
-            else:
-                result = b
-            print("max( (%s, %s, %s), (%s, %s, %s) ) = (%s, %s, %s)" %
-                  (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, result.prob, result.eu, result.dec))
-            return result
-        else:
-            # Sum
-            print("(%s, %s, %s) + (%s, %s, %s) = (%s, %s, %s)" %
-                  (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, p_a + p_b, eu_a + eu_b, self._empty_set))
-            return MaxEUSemiring.MaxEULabel(p_a + p_b, eu_a + eu_b, self._empty_set)
-
-    @staticmethod
-    def times(a: MaxEULabel, b: MaxEULabel):
-        p_a, eu_a, d_a = a
-        p_b, eu_b, d_b = b
-        eu_n = p_a * eu_b + p_b * eu_a
-        print("(%s, %s, %s) * (%s, %s, %s) = (%s, %s, %s)" %
-              (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, p_a * p_b, eu_n, d_a.union(d_b)))
-        return MaxEUSemiring.MaxEULabel(p_a * p_b, eu_n, d_a.union(d_b))
-
-    @staticmethod
-    def value(a: Label) -> MaxEULabel:
-        return MaxEUSemiring.MaxEULabel(a.prob, a.prob * a.util, a.dec)
-
-    @staticmethod
-    def normalise(a: MaxEULabel, z: MaxEULabel) -> MaxEULabel:
-        return MaxEUSemiring.MaxEULabel(a.prob / z.prob, a.eu / z.prob, a.dec)
 
 
 class DDC:
@@ -81,19 +21,18 @@ class DDC:
     Class for dynamic decision circuits (DDCs).
     """
     _false = -1
+    _true = -1
     _decisions: Set[int] = set()
     _semiring = None
     _id = 1
 
     def __init__(self):
         self._root: int = self._false
-        self._children: Dict[int, List[int]] = {0: []}
-        self._type: Dict[int, NodeType] = {0: NodeType.TRUE}
-        self._var2node: Dict[str, VarIndex] = {'true': VarIndex(0, 0)}
+        self._children: Dict[int, List[int]] = dict()
+        self._type: Dict[int, NodeType] = dict()
+        self._var2node: Dict[str, VarIndex] = dict()
         self._label: Dict[int, Label] = dict()
-
-        self._label[-1] = Label(0, 0, set())  # set label for False
-        self._label[0] = Label(1, 0, set())  # set label for True
+        self._cache: Dict[int, Label] = dict()
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -105,8 +44,9 @@ class DDC:
         # Retrieve variable names
         literal_id2name: Dict[int, List[str]] = dict()
         var_count = sdd.get_manager().varcount
-        for (name, index) in sdd.get_names():
-            inode_index = sdd.atom2var.get(index, -1)
+        for (name, key) in sdd.get_names():
+            assert key >= 0 or abs(key) in sdd.atom2var, "Named variable with negative key not existing as positive"
+            inode_index = sdd.atom2var.get(key, -1)
             if 0 <= inode_index <= var_count:
                 if inode_index in literal_id2name:
                     literal_id2name[inode_index].append(str(name))
@@ -117,6 +57,10 @@ class DDC:
         ddc._root = ddc._compact_sdd(root, literal_id2name, dict())
 
         # Init labelling function
+        if ddc._true != ddc._false:
+            # True node has been initialised, this, set the label
+            ddc._label[ddc._true] = Label(1.0, 0.0, set())
+
         # set neutral prior weights
         for var in str_state_vars:
             ddc._set_positive_label(var, Label(1.0, 0.0, set()))
@@ -126,6 +70,7 @@ class DDC:
         weights: Dict[int, Term] = dict(sdd.get_weights())
         for key in weights:
             index = sdd.atom2var.get(abs(key), -1)
+            assert index != -1, "Weighted variable missing"
             if isinstance(weights[key], bool) and weights[key] is True:
                 if key > 0:
                     ddc._set_positive_label(literal_id2name[index][0], Label(1.0, 0.0, set()))
@@ -141,7 +86,12 @@ class DDC:
                 ddc._set_positive_label(literal_id2name[index][0], Label(1.0, 0.0, {node_id.pos}))
                 ddc._set_negative_label(literal_id2name[index][0], Label(1.0, 0.0, {node_id.neg}))
 
-        # for reward parameters
+        # for all the other literals
+        for node_id, node_type in ddc._type.items():
+            if node_type == NodeType.LITERAL and node_id not in ddc._label:
+                ddc._label[node_id] = Label(1.0, 0.0, set())
+
+        # init reward parameters
         for r in rewards:
             if isinstance(r, Not):
                 key = -sdd.get_node_by_name(r.args[0])
@@ -152,20 +102,25 @@ class DDC:
             if key is None:  # if it is None it means r is not in the circuit
                 continue
 
-            if key > 0:
-                ddc._update_util_positive_label(str(r), rewards[r].compute_value())
-            else:
-                ddc._update_util_negative_label(str(r), rewards[r].compute_value())
+            ddc._init_reward_label(str(r), key > 0, rewards[r].compute_value())
 
-        # for all the other literals
-        for node_id, node_type in ddc._type.items():
-            if node_type == NodeType.LITERAL and node_id not in ddc._label:
-                ddc._label[node_id] = Label(1.0, 0.0, set())
+        # Add named variables with negative key that where not considered above
+        # note that each variable with a negative key at this point is already added in its positive key version
+        for (name, key) in sdd.queries():
+            if key < 0:
+                var_name = str(name)
+                assert var_name not in ddc._var2node, "Variable with negative key already in the DDC"
+                inode_index = sdd.atom2var.get(abs(key), -1)
+                assert inode_index != -1, "Negative query variable missing"
+                ddc_index = ddc._var2node[literal_id2name[inode_index][0]]
+                assert ddc_index.pos != ddc._false, "Query val with positive index set to false"
+                ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
         return ddc
 
     def _compact_sdd(self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]) -> int:
         if node.id in visited:
+            assert visited[node.id] in self._children, "Compacting SDD removed wrong nodes"
             return visited[node.id]
         if node.is_literal():
             # A probabilistic rule '0.5::a :- b.' is split into:
@@ -212,7 +167,15 @@ class DDC:
             return node_id
 
         elif node.is_true():
-            return 0
+            if self._true == self._false:
+                # Initialise true node for the first time
+                node_id = self._id
+                self._id += 1
+                self._children[node_id] = []
+                self._type[node_id] = NodeType.TRUE
+                visited[node.id] = node_id
+                self._true = node_id
+            return self._true
         elif node.is_false():
             return self._false
         elif node.is_decision():
@@ -224,7 +187,7 @@ class DDC:
                     prime_node = self._compact_sdd(prime, lit_name_map, visited)
                     assert prime_node != self._false, "Vincent was wrong: prime can be false."
                     # Create AND node
-                    # TODO Check if it's ok to remove AND nodes (tricky if an AND node is child of both an AND and OR)
+                    # If an AND node has an AND child, I can compact it
                     sub_children = [sub_node]
                     if self._type[sub_node] == NodeType.AND:
                         sub_children = self._children[sub_node]
@@ -279,9 +242,9 @@ class DDC:
                 dec = self._label[node].dec
                 dec_label = "{}"
                 if len(dec) > 0:
-                    decs = self._node_to_var(dec.pop())
+                    decs = [x for d in dec for x in self._node_to_var(d)]
                     dec_label = "{" + ", ".join(decs) + "}"
-                label = f"({round(self._label[node].prob, 2)}, {self._label[node].util}, {dec_label})"
+                label = f"({round(self._label[node].prob, 2)}, {self._label[node].eu}, {dec_label})"
                 dot_node = f"{node} [shape=rectangle,label=\"{var_name} : {label}\"];"
             elif self._type[node] == NodeType.AND or self._type[node] == NodeType.OR:
                 var_name = '+' if self._type[node] == NodeType.OR else '×'
@@ -298,41 +261,48 @@ class DDC:
     def _node_to_var(self, node_id: int) -> List[str]:
         literal = []
         for var, index in self._var2node.items():
-            if node_id == index.pos:
+            if node_id == index.pos and index.pos != self._false:
                 literal.append(var)
-            if node_id == index.neg:
+            if node_id == index.neg and index.neg != self._false:
                 literal.append("¬" + var)
         return literal
 
     def _set_positive_label(self, var: str, label: Label):
         index = self._var2node[var]
-        self._label[index.pos] = label
+        if index.pos != self._false:
+            self._label[index.pos] = label
 
     def _set_negative_label(self, var: str, label: Label):
         index = self._var2node[var]
-        self._label[index.neg] = label
+        if index.neg != self._false:
+            self._label[index.neg] = label
 
     def _set_pn_labels(self, var: str, positive: bool, label: Label):
         if positive:
             self._set_positive_label(var, label)
             if self._var2node[var].neg not in self._label:
                 # If the complement is not in the labelling function already, insert it
-                self._set_negative_label(var, Label(1-label.prob, label.util, label.dec))
+                self._set_negative_label(var, Label(1-label.prob, label.eu, label.dec))
         else:
             self._set_negative_label(var, label)
             if self._var2node[var].pos not in self._label:
                 # If the complement is not in the labelling function already, insert it
-                self._set_positive_label(var, Label(1-label.prob, label.util, label.dec))
+                self._set_positive_label(var, Label(1-label.prob, label.eu, label.dec))
 
-    def _update_util_positive_label(self, var: str, util: float):
-        index = self._var2node[var]
-        old_label = self._label[index.pos]
-        self._label[index.pos] = Label(old_label.prob, util, old_label.dec)
+    def _init_reward_label(self, var: str, positive: bool, val: float):
+        index = self._var2node[var].pos if positive else self._var2node[var].neg
+        assert index in self._label, "Reward label wrongly initialised"
+        old_label = self._label[index]
+        self._label[index] = Label(old_label.prob, old_label.prob * val, old_label.dec)
 
-    def _update_util_negative_label(self, var: str, util: float):
-        index = self._var2node[var]
-        old_label = self._label[index.neg]
-        self._label[index.neg] = Label(old_label.prob, util, old_label.dec)
+    def set_utility_label(self, var: str, eu: float):
+        index = self._var2node[var].pos
+        assert index in self._label, "Utility label not existing"
+        old_label = self._label[index]
+        self._label[index] = Label(old_label.prob, eu, old_label.dec)
+
+    def get_utility_label(self, var: str) -> float:
+        return self._label[self._var2node[var].pos].eu
 
     def size(self) -> int:
         return len(self._children)
@@ -342,12 +312,54 @@ class DDC:
         node_index = self._var2node[var]
         node_id = node_index.neg if value else node_index.pos
         label = self._label[node_id]
-        return node_id, Label(0.0, label.util, label.dec)
+        return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def maxeu(self, state: Dict[str, bool] = None) -> MaxEUSemiring.MaxEULabel:
-        return self.evaluate(MaxEUSemiring(self._decisions), state)
+    def maxeu(self, state: Dict[str, bool] = None) -> Label:
+        return self._evaluate_root_iter(MaxEUSemiring(self._decisions), state)
 
-    def evaluate(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> MaxEUSemiring.MaxEULabel:
+    def _evaluate_root_iter(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
+        self._semiring = semiring
+
+        evidence_label: Dict[int, Label] = dict()
+        if evidence is not None:
+            for var, value in evidence.items():
+                node, label = self._evidence_to_label(var, value)
+                evidence_label[node] = label
+
+        self._cache = dict()
+        for node, children in self._children.items():
+            if self._type[node] == NodeType.TRUE:
+                self._cache[node] = self._semiring.one()
+            elif self._type[node] == NodeType.LITERAL:
+                if evidence_label is not None and node in evidence_label:
+                    self._cache[node] = evidence_label[node]
+                else:
+                    self._cache[node] = self._label[node]
+            elif self._type[node] == NodeType.OR:
+                assert len(self._children[node]) > 0, "There is an OR node with no children"
+                total = self._cache[children[0]]
+                for child in children[1:]:
+                    total = self._semiring.plus(total, self._cache[child])
+                self._cache[node] = total
+            elif self._type[node] == NodeType.AND:
+                assert len(self._children[node]) > 0, "There is an AND node with no children"
+                total = self._cache[children[0]]
+                for child in children[1:]:
+                    total = self._semiring.times(total, self._cache[child])
+                self._cache[node] = total
+
+        ddc_eval = self._cache[self._root]
+        (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
+
+        # turn decision ids into variable names (i.e. human-readable)
+        dec_vars: Set[str] = set()
+        for d in dec:
+            for d_var in self._node_to_var(d):
+                dec_vars.add(d_var)
+
+        return Label(prob, eu, dec_vars)
+
+    def evaluate_root(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
         self._semiring = semiring
 
         evidence_label: Dict[int, Label] = dict()
@@ -357,15 +369,30 @@ class DDC:
                 evidence_label[node] = label
 
         ddc_eval = self._evaluate_node(self._root, evidence_label)
-        return semiring.normalise(ddc_eval, ddc_eval)
+        self._cache = dict()  # empty cache
+        (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
 
-    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> MaxEUSemiring.MaxEULabel:
+        # turn decision ids into variable names (i.e. human-readable)
+        dec_vars: Set[str] = set()
+        for d in dec:
+            for d_var in self._node_to_var(d):
+                dec_vars.add(d_var)
+
+        return Label(prob, eu, dec_vars)
+
+    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
+        assert node != self._false, "False node is evaluated"
+        if node in self._cache:
+            return self._cache[node]
         if self._type[node] == NodeType.TRUE:
+            self._cache[node] = self._semiring.one()
             return self._semiring.one()
         elif self._type[node] == NodeType.LITERAL:
+            res = self._label[node]
             if evidence_label is not None and node in evidence_label:
-                return self._semiring.value(evidence_label[node])
-            return self._semiring.value(self._label[node])
+                res = evidence_label[node]
+            self._cache[node] = res
+            return res
         elif self._type[node] == NodeType.OR or self._type[node] == NodeType.AND:
             assert len(self._children[node]) > 0, "There is an AND/OR node with no children"
             total = self._evaluate_node(self._children[node][0], evidence_label)
@@ -374,7 +401,15 @@ class DDC:
                 new_total = self._semiring.plus(total, child_eval) if self._type[node] == NodeType.OR \
                     else self._semiring.times(total, child_eval)
                 total = new_total
+            self._cache[node] = total
             return total
+
+    def impossible_utilities(self) -> List[str]:
+        impossible_utilities = []
+        for var, index in self._var2node.items():
+            if index.pos == self._false:
+                impossible_utilities.append(var)
+        return impossible_utilities
 
 
 class NodeType(Enum):
@@ -382,5 +417,3 @@ class NodeType(Enum):
     LITERAL = 2
     AND = 3
     OR = 4
-
-
