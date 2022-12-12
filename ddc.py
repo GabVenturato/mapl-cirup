@@ -1,13 +1,13 @@
 """
 Dynamic Decision Circuit (DDC)
 """
-
+import numpy as np
 from typing import List, Dict, Set
 from enum import Enum
 from collections import namedtuple
 import graphviz
 
-from semiring import MaxEUSemiring, Label
+from semiring import BestDecSemiring, Label, MEUSemiring
 
 from problog.logic import Term, Constant, Not
 from problog.sdd_formula_explicit import SDDExplicit
@@ -33,13 +33,14 @@ class DDC:
         self._var2node: Dict[str, VarIndex] = dict()
         self._label: Dict[int, Label] = dict()
         self._cache: Dict[int, Label] = dict()
+        self._state_vars: List[str] = []
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
         root: SddNode = sdd.get_root_inode()
-        str_state_vars: List[str] = [str(x) for x in state_vars]
 
         ddc = cls()
+        ddc._state_vars = [str(x) for x in state_vars]
 
         # Retrieve variable names
         literal_id2name: Dict[int, List[str]] = dict()
@@ -62,7 +63,7 @@ class DDC:
             ddc._label[ddc._true] = Label(1.0, 0.0, set())
 
         # set neutral prior weights
-        for var in str_state_vars:
+        for var in ddc._state_vars:
             ddc._set_positive_label(var, Label(1.0, 0.0, set()))
             ddc._set_negative_label(var, Label(1.0, 0.0, set()))
 
@@ -297,12 +298,17 @@ class DDC:
 
     def set_utility_label(self, var: str, eu: float):
         index = self._var2node[var].pos
-        assert index in self._label, "Utility label not existing"
-        old_label = self._label[index]
-        self._label[index] = Label(old_label.prob, eu, old_label.dec)
+        if index != self._false:
+            assert index in self._label, "Utility label not existing"
+            old_label = self._label[index]
+            self._label[index] = Label(old_label.prob, eu, old_label.dec)
 
     def get_utility_label(self, var: str) -> float:
-        return self._label[self._var2node[var].pos].eu
+        index = self._var2node[var].pos
+        if index != self._false:
+            return self._label[self._var2node[var].pos].eu
+        else:
+            return 0.0
 
     def size(self) -> int:
         return len(self._children)
@@ -314,10 +320,52 @@ class DDC:
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def maxeu(self, state: Dict[str, bool] = None) -> Label:
-        return self._evaluate_root_iter(MaxEUSemiring(self._decisions), state)
+    def max_eu(self) -> np.array:
+        # Create vectorised evidence for state variables
+        states: Dict[int, np.array] = dict()
+        var_num: int = len(self._state_vars)
+        rep: int = 0
+        for var in self._state_vars:
+            var_num -= 1
+            index = self._var2node[var]
+            states[index.pos] = np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num)
+            states[index.neg] = np.tile(np.repeat(np.array([0, 1]), 2 ** rep), 2 ** var_num)
+            rep += 1
 
-    def _evaluate_root_iter(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
+        semiring = MEUSemiring()
+
+        cache = dict()
+        for node, children in self._children.items():
+            if self._type[node] == NodeType.TRUE:
+                cache[node] = semiring.one()
+            elif self._type[node] == NodeType.LITERAL:
+                if node in states:
+                    (p, eu, m) = self._label[node]
+                    cache[node] = semiring.value(Label(states[node], eu * states[node], m))
+                else:
+                    cache[node] = self._label[node]
+            elif self._type[node] == NodeType.OR:
+                assert len(self._children[node]) > 0, "There is an OR node with no children"
+                total = cache[children[0]]
+                for child in children[1:]:
+                    total = semiring.plus(total, cache[child])
+                cache[node] = total
+            elif self._type[node] == NodeType.AND:
+                assert len(self._children[node]) > 0, "There is an AND node with no children"
+                total = cache[children[0]]
+                for child in children[1:]:
+                    total = semiring.times(total, cache[child])
+                cache[node] = total
+
+        ddc_eval = cache[self._root]
+        _, eu, _ = semiring.normalise(ddc_eval, ddc_eval)
+
+        return eu
+
+    def best_dec(self, state: Dict[str, bool] = None) -> Label:
+        return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
+
+    def _evaluate_root_iter(self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None) -> Label:
         self._semiring = semiring
 
         evidence_label: Dict[int, Label] = dict()
@@ -359,50 +407,50 @@ class DDC:
 
         return Label(prob, eu, dec_vars)
 
-    def evaluate_root(self, semiring: MaxEUSemiring, evidence: Dict[str, bool] = None) -> Label:
-        self._semiring = semiring
-
-        evidence_label: Dict[int, Label] = dict()
-        if evidence is not None:
-            for var, value in evidence.items():
-                node, label = self._evidence_to_label(var, value)
-                evidence_label[node] = label
-
-        ddc_eval = self._evaluate_node(self._root, evidence_label)
-        self._cache = dict()  # empty cache
-        (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
-
-        # turn decision ids into variable names (i.e. human-readable)
-        dec_vars: Set[str] = set()
-        for d in dec:
-            for d_var in self._node_to_var(d):
-                dec_vars.add(d_var)
-
-        return Label(prob, eu, dec_vars)
-
-    def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
-        assert node != self._false, "False node is evaluated"
-        if node in self._cache:
-            return self._cache[node]
-        if self._type[node] == NodeType.TRUE:
-            self._cache[node] = self._semiring.one()
-            return self._semiring.one()
-        elif self._type[node] == NodeType.LITERAL:
-            res = self._label[node]
-            if evidence_label is not None and node in evidence_label:
-                res = evidence_label[node]
-            self._cache[node] = res
-            return res
-        elif self._type[node] == NodeType.OR or self._type[node] == NodeType.AND:
-            assert len(self._children[node]) > 0, "There is an AND/OR node with no children"
-            total = self._evaluate_node(self._children[node][0], evidence_label)
-            for child in self._children[node][1:]:
-                child_eval = self._evaluate_node(child, evidence_label)
-                new_total = self._semiring.plus(total, child_eval) if self._type[node] == NodeType.OR \
-                    else self._semiring.times(total, child_eval)
-                total = new_total
-            self._cache[node] = total
-            return total
+    # def evaluate_root(self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None) -> Label:
+    #     self._semiring = semiring
+    #
+    #     evidence_label: Dict[int, Label] = dict()
+    #     if evidence is not None:
+    #         for var, value in evidence.items():
+    #             node, label = self._evidence_to_label(var, value)
+    #             evidence_label[node] = label
+    #
+    #     ddc_eval = self._evaluate_node(self._root, evidence_label)
+    #     self._cache = dict()  # empty cache
+    #     (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
+    #
+    #     # turn decision ids into variable names (i.e. human-readable)
+    #     dec_vars: Set[str] = set()
+    #     for d in dec:
+    #         for d_var in self._node_to_var(d):
+    #             dec_vars.add(d_var)
+    #
+    #     return Label(prob, eu, dec_vars)
+    #
+    # def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
+    #     assert node != self._false, "False node is evaluated"
+    #     if node in self._cache:
+    #         return self._cache[node]
+    #     if self._type[node] == NodeType.TRUE:
+    #         self._cache[node] = self._semiring.one()
+    #         return self._semiring.one()
+    #     elif self._type[node] == NodeType.LITERAL:
+    #         res = self._label[node]
+    #         if evidence_label is not None and node in evidence_label:
+    #             res = evidence_label[node]
+    #         self._cache[node] = res
+    #         return res
+    #     elif self._type[node] == NodeType.OR or self._type[node] == NodeType.AND:
+    #         assert len(self._children[node]) > 0, "There is an AND/OR node with no children"
+    #         total = self._evaluate_node(self._children[node][0], evidence_label)
+    #         for child in self._children[node][1:]:
+    #             child_eval = self._evaluate_node(child, evidence_label)
+    #             new_total = self._semiring.plus(total, child_eval) if self._type[node] == NodeType.OR \
+    #                 else self._semiring.times(total, child_eval)
+    #             total = new_total
+    #         self._cache[node] = total
+    #         return total
 
     def impossible_utilities(self) -> List[str]:
         impossible_utilities = []
@@ -410,6 +458,11 @@ class DDC:
             if index.pos == self._false:
                 impossible_utilities.append(var)
         return impossible_utilities
+
+    def print_info(self):
+        print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
+        print("Number of multiplications required: %s" %
+              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]))
 
 
 class NodeType(Enum):

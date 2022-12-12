@@ -3,6 +3,7 @@ MArkov PLanning with CIRcuit bellman UPdates (mapl-cirup)
 """
 import copy
 import time
+import numpy as np
 
 from typing import Dict, List
 
@@ -59,23 +60,24 @@ class MaplCirup:
         print("Compiling...")
         starttime_compilation = time.time()
         sdd = self._compilation(grounded_prog)
+        # TODO Print the size of the SDD after compiling (also after minimising maybe)
+
+        if minimisation or self._minimisation_on:
+            print("Minimizing...")
+            starttime_minimization = time.time()
+            self._minimize(sdd)
+            endtime_minimization = time.time()
+            self._minimize_time = endtime_minimization - starttime_minimization
+
         self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards)
         endtime_compilation = time.time()
         self._compile_time = endtime_compilation - starttime_compilation
         print("Compilation done! (circuit size: %s)" % self.size())
 
-        if minimisation:
-            self._minimisation_on = True
-            print("Minimizing...")
-            starttime_minimization = time.time()
-            self._minimize()
-            endtime_minimization = time.time()
-            self._minimize_time = endtime_minimization - starttime_minimization
-            print("Minimization done! (circuit size: %s)" % self.size())
-
+        self._remove_impossible_states()
         # (p, eu, dec) = self._ddc.maxeu()  # {'hit': False}
         # print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
-        self._remove_impossible_states()
+        # self._ddc.print_info()
 
         return
 
@@ -214,7 +216,7 @@ class MaplCirup:
 
         return circuit
 
-    def _minimize(self) -> None:
+    def _minimize(self, sdd: SDDExplicit) -> None:
         """
         SDD Minimization (Sec 5.5 of the advanced manual).
         """
@@ -225,8 +227,8 @@ class MaplCirup:
         # self._circuit.get_manager().get_manager().set_vtree_apply_time_limit(5)
 
         # The following call to 'ref()' is required otherwise the minimization removes necessary nodes
-        self._circuit.get_root_inode().ref()
-        self._circuit.get_manager().get_manager().minimize_limited()
+        sdd.get_root_inode().ref()
+        sdd.get_manager().get_manager().minimize_limited()
 
     @staticmethod
     def enumeration_next(state: List[Term]) -> List[Term]:
@@ -274,15 +276,24 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
+        old_utility = np.zeros(2**len(self._state_vars))
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
                     break
 
-            delta = self._update_utility()
+            new_utility = self._ddc.max_eu()
+
+            u_idx = 0
+            for u in new_utility:
+                self._ddc.set_utility_label('u'+str(u_idx), self._discount * u)
+                u_idx += 1
+
+            delta = np.linalg.norm(new_utility-old_utility, ord=np.inf)
+            old_utility = new_utility
             self._iterations_count += 1
 
-            print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
+            # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
 
             if self._discount < 1:
                 if horizon is not None:
@@ -291,45 +302,11 @@ class MaplCirup:
                         break
                 else:
                     # loop until convergence
-                    # since I compute delta as (U'[s]-U[s])*discount, I can avoid dividing by the discount here
                     if delta <= self._error * (1-self._discount) / self._discount:
                         break
 
         endtime_vi = time.time()
         self._vi_time = endtime_vi - starttime_vi
-
-    def _update_utility(self) -> float:
-        # Compute the new utility values
-        new_utilities: Dict[str, float] = dict()
-
-        for u, state in self._utilities.items():
-            u_var = str(u)
-
-            # collect state evidence
-            state_evidence: Dict[str, bool] = dict()
-            for term in state:
-                term_var = str(term.args[0] if isinstance(term, Not) else term)
-                state_evidence[term_var] = False if isinstance(term, Not) else True
-
-            # circuit evaluation
-            _, eu, _ = self._ddc.maxeu(state_evidence)
-            new_utilities[u_var] = eu
-
-        # Update the label function
-        utility_delta = 0
-        for u in self._utilities:
-            u_var = str(u)
-
-            old_utility = self._ddc.get_utility_label(u_var)
-            new_utility = self._discount * new_utilities[u_var]
-
-            self._ddc.set_utility_label(u_var, new_utility)
-
-            abs_diff = abs(new_utility - old_utility)
-            if abs_diff > utility_delta:
-                utility_delta = abs_diff
-
-        return utility_delta
 
     def print_explicit_policy(self) -> None:
         print("\nPOLICY FUNCTION:\n")
@@ -341,7 +318,7 @@ class MaplCirup:
                 term_var = str(term.args[0] if isinstance(term, Not) else term)
                 state_evidence[term_var] = False if isinstance(term, Not) else True
 
-            _, eu, decisions = self._ddc.maxeu(state_evidence)
+            _, eu, decisions = self._ddc.best_dec(state_evidence)
 
             print(str(state) + ' -> ' + str(decisions) + ' (eu: ' + str(eu) + ')')
             state = MaplCirup.enumeration_next(state)
