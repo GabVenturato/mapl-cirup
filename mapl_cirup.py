@@ -77,7 +77,7 @@ class MaplCirup:
         self._remove_impossible_states()
         # (p, eu, dec) = self._ddc.maxeu()  # {'hit': False}
         # print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
-        # self._ddc.print_info()
+        self._ddc.print_info()
 
         return
 

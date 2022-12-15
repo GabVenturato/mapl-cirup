@@ -34,6 +34,7 @@ class DDC:
         self._label: Dict[int, Label] = dict()
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
+        self._states: Dict[int, np.array] = dict()
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -116,6 +117,16 @@ class DDC:
                 ddc_index = ddc._var2node[literal_id2name[inode_index][0]]
                 assert ddc_index.pos != ddc._false, "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
+
+        # Create vectorised evidence for state variables
+        var_num: int = len(ddc._state_vars)
+        rep: int = 0
+        for var in ddc._state_vars:
+            var_num -= 1
+            index = ddc._var2node[var]
+            ddc._states[index.pos] = np.tile(np.repeat(np.array([1, 0]), 2 ** rep), 2 ** var_num)
+            ddc._states[index.neg] = np.tile(np.repeat(np.array([0, 1]), 2 ** rep), 2 ** var_num)
+            rep += 1
 
         return ddc
 
@@ -321,17 +332,6 @@ class DDC:
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
     def max_eu(self) -> np.array:
-        # Create vectorised evidence for state variables
-        states: Dict[int, np.array] = dict()
-        var_num: int = len(self._state_vars)
-        rep: int = 0
-        for var in self._state_vars:
-            var_num -= 1
-            index = self._var2node[var]
-            states[index.pos] = np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num)
-            states[index.neg] = np.tile(np.repeat(np.array([0, 1]), 2 ** rep), 2 ** var_num)
-            rep += 1
-
         semiring = MEUSemiring()
 
         cache = dict()
@@ -339,9 +339,9 @@ class DDC:
             if self._type[node] == NodeType.TRUE:
                 cache[node] = semiring.one()
             elif self._type[node] == NodeType.LITERAL:
-                if node in states:
+                if node in self._states:
                     (p, eu, m) = self._label[node]
-                    cache[node] = semiring.value(Label(states[node], eu * states[node], m))
+                    cache[node] = semiring.value(Label(self._states[node], eu * self._states[node], m))
                 else:
                     cache[node] = self._label[node]
             elif self._type[node] == NodeType.OR:
@@ -463,6 +463,9 @@ class DDC:
         print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
         print("Number of multiplications required: %s" %
               sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]))
+        print("Number of OR nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.OR]))
+        print("Number of sum/max required: %s" %
+              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]))
 
 
 class NodeType(Enum):
