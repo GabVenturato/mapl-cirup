@@ -217,7 +217,8 @@ class MaplCirup:
 
         return circuit
 
-    def _minimize(self, sdd: SDDExplicit) -> None:
+    @staticmethod
+    def _minimize(sdd: SDDExplicit) -> None:
         """
         SDD Minimization (Sec 5.5 of the advanced manual).
         """
@@ -290,7 +291,7 @@ class MaplCirup:
             utility = new_utility
             self._iterations_count += 1
 
-            # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
+            print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
 
             if self._discount < 1:
                 if horizon is not None:
@@ -304,6 +305,11 @@ class MaplCirup:
 
         endtime_vi = time.time()
         self._vi_time = endtime_vi - starttime_vi
+
+        u_idx = 0
+        for u in utility:
+            self._ddc.set_utility_label('u' + str(u_idx), self._discount * u)
+            u_idx += 1
 
     def print_explicit_policy(self) -> None:
         print("\nPOLICY FUNCTION:\n")

@@ -37,6 +37,7 @@ class DDC:
         self._states: Dict[int, tf.Tensor] = dict()
         self._meu_semiring = MEUSemiring()
         self._discount = discount
+        self._graph = None
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant], discount: float):
@@ -131,6 +132,15 @@ class DDC:
             ddc._states[index.pos] = tf.tile(tf.repeat(pos_base, repeats=2**rep), [2 ** var_num])
             ddc._states[index.neg] = tf.tile(tf.repeat(neg_base, repeats=2**rep), [2 ** var_num])
             rep += 1
+
+        # Create keras model
+        placeholders: Dict[int, float] = dict()
+        for u_idx in range(0, 2**len(ddc._state_vars)):
+            var = 'u' + str(u_idx)
+            index = ddc._var2node[var].pos
+            placeholders[index] = tf.keras.Input(name=var+'_eu', shape=())
+        output = ddc._max_eu_exec(placeholders)
+        ddc._graph = tf.keras.Model(inputs=placeholders, outputs=output)
 
         return ddc
 
@@ -340,13 +350,18 @@ class DDC:
 
     def max_eu(self, utility: tf.Tensor) -> tf.Tensor:
         u_idx = 0
+        utility_label: Dict[int, float] = dict()
         for u in utility:
-            self.set_utility_label('u' + str(u_idx), self._discount * u)
+            var = 'u' + str(u_idx)
+            index = self._var2node[var].pos
+            if index != self._false:
+                assert index in self._label, "Utility label not existing"
+                utility_label[index] = self._discount * u
             u_idx += 1
-        return self.max_eu_exec()
 
-    @tf.function
-    def max_eu_exec(self) -> tf.Tensor:
+        return self._graph(utility_label)
+
+    def _max_eu_exec(self, utility_label: Dict[int, float]) -> tf.Tensor:
         cache = dict()
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
@@ -355,6 +370,9 @@ class DDC:
                 if node in self._states:
                     (p, eu, m) = self._label[node]
                     cache[node] = self._meu_semiring.value(Label(self._states[node], self._states[node] * eu, m))
+                elif node in utility_label:
+                    old_label = self._label[node]
+                    cache[node] = self._meu_semiring.value(Label(old_label.prob, utility_label[node], old_label.dec))
                 else:
                     cache[node] = self._label[node]
             elif self._type[node] == NodeType.OR:

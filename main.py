@@ -28,7 +28,7 @@ def main(argv):
     print("Value iteration time: %s" % mc.value_iteration_time())
     print("Total time: %s" % mc.tot_time())
     print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')
-    # mc.print_explicit_policy()
+    mc.print_explicit_policy()
 
 
 def argparser():

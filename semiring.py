@@ -43,7 +43,7 @@ class MEUSemiring:
         p_b, eu_b, max_b = b
         eu_n = p_a * eu_b + p_b * eu_a
         # print("(%s, %s) * (%s, %s) = (%s, %s)" %
-        #       (a.prob, a.eu, b.prob, b.eu, p_a * p_b, eu_n))
+        #       (p_a, eu_a, p_b, eu_b, p_a * p_b, eu_n))
         return p_a * p_b, eu_n, max_a or max_b
 
     @staticmethod
