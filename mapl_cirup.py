@@ -70,7 +70,7 @@ class MaplCirup:
             endtime_minimization = time.time()
             self._minimize_time = endtime_minimization - starttime_minimization
 
-        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards)
+        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards, self._discount)
         endtime_compilation = time.time()
         self._compile_time = endtime_compilation - starttime_compilation
         print("Compilation done! (circuit size: %s)" % self.size())
@@ -270,6 +270,7 @@ class MaplCirup:
 
         if discount is not None:
             self._discount = discount
+            self._ddc.set_discount(self._discount)
 
         if error is not None:
             self._error = error
@@ -277,21 +278,16 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        old_utility = tf.zeros(2**len(self._state_vars))
+        utility = tf.zeros(2**len(self._state_vars))
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
                     break
 
-            new_utility = self._ddc.max_eu()
+            new_utility = self._ddc.max_eu(utility)
 
-            u_idx = 0
-            for u in new_utility:
-                self._ddc.set_utility_label('u'+str(u_idx), self._discount * u)
-                u_idx += 1
-
-            delta = tf.norm(new_utility-old_utility, ord=np.inf)
-            old_utility = new_utility
+            delta = tf.norm(new_utility-utility, ord=np.inf)
+            utility = new_utility
             self._iterations_count += 1
 
             # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))

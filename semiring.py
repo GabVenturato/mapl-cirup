@@ -10,11 +10,11 @@ Label = namedtuple('Label', 'prob, eu, dec')
 
 
 class MEUSemiring:
-    MEULabel = namedtuple('MEULabel', 'prob, eu, max')
+    # MEULabel = namedtuple('MEULabel', 'prob, eu, max')
 
     def __init__(self):
-        self.val_zero = MEUSemiring.MEULabel(0.0, 0.0, True)
-        self.val_one = MEUSemiring.MEULabel(1.0, 0.0, False)
+        self.val_zero = (0.0, 0.0, True)
+        self.val_one = (1.0, 0.0, False)
 
     def one(self):
         return self.val_one
@@ -22,7 +22,7 @@ class MEUSemiring:
     def zero(self):
         return self.val_zero
 
-    def plus(self, a: MEULabel, b: MEULabel) -> MEULabel:
+    def plus(self, a, b):
         p_a, eu_a, max_a = a
         p_b, eu_b, max_b = b
         if max_a or max_b:
@@ -31,30 +31,32 @@ class MEUSemiring:
             eu_res = tf.where(take_a, eu_a, eu_b)
             # print("max( (%s, %s), (%s, %s) ) = (%s, %s)" %
             #       (a.prob, a.eu, b.prob, b.eu, p_res, eu_res))
-            return MEUSemiring.MEULabel(p_res, eu_res, True)
+            return p_res, eu_res, True
         else:
             # print("(%s, %s) + (%s, %s) = (%s, %s)" %
             #       (a.prob, a.eu, b.prob, b.eu, p_a + p_b, eu_a + eu_b))
-            return MEUSemiring.MEULabel(p_a + p_b, eu_a + eu_b, False)
+            return p_a + p_b, eu_a + eu_b, False
 
     @staticmethod
-    def times(a: MEULabel, b: MEULabel) -> MEULabel:
+    def times(a, b):
         p_a, eu_a, max_a = a
         p_b, eu_b, max_b = b
         eu_n = p_a * eu_b + p_b * eu_a
         # print("(%s, %s) * (%s, %s) = (%s, %s)" %
         #       (a.prob, a.eu, b.prob, b.eu, p_a * p_b, eu_n))
-        return MEUSemiring.MEULabel(p_a * p_b, eu_n, max_a or max_b)
+        return p_a * p_b, eu_n, max_a or max_b
 
     @staticmethod
-    def value(a: Label) -> MEULabel:
+    def value(a):
         # Max: since all the decisions are on top (X-constrained SDDs), as long as there is some decisions, it means
         # we have to maximise. Because of the smoothness of the circuit we know the two sets are different.
-        return MEUSemiring.MEULabel(a.prob, a.eu, len(a.dec) > 0)
+        return a.prob, a.eu, len(a.dec) > 0
 
     @staticmethod
-    def normalise(a: MEULabel, z: MEULabel) -> MEULabel:
-        return MEUSemiring.MEULabel(a.prob / z.prob, a.eu / z.prob, a.max)
+    def normalise(a, z):
+        p_a, eu_a, max_a = a
+        p_z, _, _ = z
+        return p_a / p_z, eu_a / p_z, max_a
 
 
 class BestDecSemiring:

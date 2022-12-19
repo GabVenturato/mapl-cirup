@@ -26,7 +26,7 @@ class DDC:
     _semiring = None
     _id = 1
 
-    def __init__(self):
+    def __init__(self, discount: float):
         self._root: int = self._false
         self._children: Dict[int, List[int]] = dict()
         self._type: Dict[int, NodeType] = dict()
@@ -35,12 +35,14 @@ class DDC:
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, tf.Tensor] = dict()
+        self._meu_semiring = MEUSemiring()
+        self._discount = discount
 
     @classmethod
-    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
+    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant], discount: float):
         root: SddNode = sdd.get_root_inode()
 
-        ddc = cls()
+        ddc = cls(discount)
         ddc._state_vars = [str(x) for x in state_vars]
 
         # Retrieve variable names
@@ -333,34 +335,43 @@ class DDC:
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def max_eu(self) -> tf.Tensor:
-        semiring = MEUSemiring()
+    def set_discount(self, discount: float):
+        self._discount = discount
 
+    def max_eu(self, utility: tf.Tensor) -> tf.Tensor:
+        u_idx = 0
+        for u in utility:
+            self.set_utility_label('u' + str(u_idx), self._discount * u)
+            u_idx += 1
+        return self.max_eu_exec()
+
+    @tf.function
+    def max_eu_exec(self) -> tf.Tensor:
         cache = dict()
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
-                cache[node] = semiring.one()
+                cache[node] = self._meu_semiring.one()
             elif self._type[node] == NodeType.LITERAL:
                 if node in self._states:
                     (p, eu, m) = self._label[node]
-                    cache[node] = semiring.value(Label(self._states[node], self._states[node] * eu, m))
+                    cache[node] = self._meu_semiring.value(Label(self._states[node], self._states[node] * eu, m))
                 else:
                     cache[node] = self._label[node]
             elif self._type[node] == NodeType.OR:
                 assert len(self._children[node]) > 0, "There is an OR node with no children"
                 total = cache[children[0]]
                 for child in children[1:]:
-                    total = semiring.plus(total, cache[child])
+                    total = self._meu_semiring.plus(total, cache[child])
                 cache[node] = total
             elif self._type[node] == NodeType.AND:
                 assert len(self._children[node]) > 0, "There is an AND node with no children"
                 total = cache[children[0]]
                 for child in children[1:]:
-                    total = semiring.times(total, cache[child])
+                    total = self._meu_semiring.times(total, cache[child])
                 cache[node] = total
 
         ddc_eval = cache[self._root]
-        _, eu, _ = semiring.normalise(ddc_eval, ddc_eval)
+        _, eu, _ = self._meu_semiring.normalise(ddc_eval, ddc_eval)
 
         return eu
 
