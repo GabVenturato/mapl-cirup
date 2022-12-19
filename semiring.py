@@ -4,7 +4,7 @@ Definition of the semirings used by the tool.
 
 from collections import namedtuple
 
-import numpy as np
+import tensorflow as tf
 
 Label = namedtuple('Label', 'prob, eu, dec')
 
@@ -27,8 +27,8 @@ class MEUSemiring:
         p_b, eu_b, max_b = b
         if max_a or max_b:
             take_a = (p_b == 0) | ((p_a != 0) & (eu_a / p_a > eu_b / p_b))
-            p_res = (p_a * take_a) + (p_b * np.logical_not(take_a))
-            eu_res = (eu_a * take_a) + (eu_b * np.logical_not(take_a))
+            p_res = tf.where(take_a, p_a, p_b)
+            eu_res = tf.where(take_a, eu_a, eu_b)
             # print("max( (%s, %s), (%s, %s) ) = (%s, %s)" %
             #       (a.prob, a.eu, b.prob, b.eu, p_res, eu_res))
             return MEUSemiring.MEULabel(p_res, eu_res, True)

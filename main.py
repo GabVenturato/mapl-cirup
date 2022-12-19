@@ -19,9 +19,9 @@ def main(argv):
     print("Circuit size: %s" % mc.size())
 
     # mc.value_iteration(discount=0.9, error=0.01)
-    # mc.value_iteration(discount=0.9, error=0.1)
+    mc.value_iteration(discount=0.9, error=0.1)
     # mc.value_iteration(discount=0.9)
-    mc.value_iteration(discount=0.9, horizon=39)
+    # mc.value_iteration(discount=0.9, horizon=39)
     # mc.value_iteration(horizon=10)
     # mc.value_iteration()  # = immediate reward
 

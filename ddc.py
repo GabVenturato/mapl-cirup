@@ -1,7 +1,7 @@
 """
 Dynamic Decision Circuit (DDC)
 """
-import numpy as np
+import tensorflow as tf
 from typing import List, Dict, Set
 from enum import Enum
 from collections import namedtuple
@@ -34,7 +34,7 @@ class DDC:
         self._label: Dict[int, Label] = dict()
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
-        self._states: Dict[int, np.array] = dict()
+        self._states: Dict[int, tf.Tensor] = dict()
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -121,11 +121,13 @@ class DDC:
         # Create vectorised evidence for state variables
         var_num: int = len(ddc._state_vars)
         rep: int = 0
+        pos_base = tf.constant([1, 0], dtype=tf.float32)
+        neg_base = tf.constant([0, 1], dtype=tf.float32)
         for var in ddc._state_vars:
             var_num -= 1
             index = ddc._var2node[var]
-            ddc._states[index.pos] = np.tile(np.repeat(np.array([1, 0]), 2 ** rep), 2 ** var_num)
-            ddc._states[index.neg] = np.tile(np.repeat(np.array([0, 1]), 2 ** rep), 2 ** var_num)
+            ddc._states[index.pos] = tf.tile(tf.repeat(pos_base, repeats=2**rep), [2 ** var_num])
+            ddc._states[index.neg] = tf.tile(tf.repeat(neg_base, repeats=2**rep), [2 ** var_num])
             rep += 1
 
         return ddc
@@ -331,7 +333,7 @@ class DDC:
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def max_eu(self) -> np.array:
+    def max_eu(self) -> tf.Tensor:
         semiring = MEUSemiring()
 
         cache = dict()
@@ -341,7 +343,7 @@ class DDC:
             elif self._type[node] == NodeType.LITERAL:
                 if node in self._states:
                     (p, eu, m) = self._label[node]
-                    cache[node] = semiring.value(Label(self._states[node], eu * self._states[node], m))
+                    cache[node] = semiring.value(Label(self._states[node], self._states[node] * eu, m))
                 else:
                     cache[node] = self._label[node]
             elif self._type[node] == NodeType.OR:

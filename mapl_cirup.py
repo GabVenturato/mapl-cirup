@@ -4,6 +4,7 @@ MArkov PLanning with CIRcuit bellman UPdates (mapl-cirup)
 import copy
 import time
 import numpy as np
+import tensorflow as tf
 
 from typing import Dict, List
 
@@ -276,7 +277,7 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        old_utility = np.zeros(2**len(self._state_vars))
+        old_utility = tf.zeros(2**len(self._state_vars))
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
@@ -289,7 +290,7 @@ class MaplCirup:
                 self._ddc.set_utility_label('u'+str(u_idx), self._discount * u)
                 u_idx += 1
 
-            delta = np.linalg.norm(new_utility-old_utility, ord=np.inf)
+            delta = tf.norm(new_utility-old_utility, ord=np.inf)
             old_utility = new_utility
             self._iterations_count += 1
 
