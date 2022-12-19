@@ -279,7 +279,7 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        utility = tf.zeros(2**len(self._state_vars))
+        utility = np.zeros(2**len(self._state_vars))
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
@@ -287,7 +287,7 @@ class MaplCirup:
 
             new_utility = self._ddc.max_eu(utility)
 
-            delta = tf.norm(new_utility-utility, ord=np.inf)
+            delta = np.linalg.norm(new_utility-utility, ord=np.inf)
             utility = new_utility
             self._iterations_count += 1
 
