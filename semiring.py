@@ -29,8 +29,12 @@ class MEUSemiring:
             take_a = (p_b == 0) | ((p_a != 0) & (eu_a / p_a > eu_b / p_b))
             p_res = tf.where(take_a, p_a, p_b)
             eu_res = tf.where(take_a, eu_a, eu_b)
-            # print("max( (%s, %s), (%s, %s) ) = (%s, %s)" %
-            #       (a.prob, a.eu, b.prob, b.eu, p_res, eu_res))
+            # def return_a(): return a
+            # def return_b(): return b
+            # result = tf.case([(p_a == 0, return_b), (p_b == 0, return_a), (eu_a / p_a >= eu_b / p_b, return_a)],
+            #                  default=return_b, exclusive=True)
+            # print("max( (%s, %s, %s), (%s, %s, %s) ) = (%s, %s, %s)" %
+            #       (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, result.prob, result.eu, result.dec))
             return p_res, eu_res, True
         else:
             # print("(%s, %s) + (%s, %s) = (%s, %s)" %
