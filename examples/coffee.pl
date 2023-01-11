@@ -18,6 +18,8 @@ state_variables(huc, hrc, wet, raining, umbrella, office).
 0.75::x(raining) :- raining.
 0.3::x(raining) :- \+raining.
 
+%huc :- raining.
+
 %% Transition
 % move
 0.99::x(wet) :- wet, move.

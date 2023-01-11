@@ -302,7 +302,7 @@ class MaplCirup:
                         break
                 else:
                     # loop until convergence
-                    if delta <= self._error * (1-self._discount) / self._discount:
+                    if delta <= self._error:  # * (1-self._discount) / self._discount:
                         break
 
         endtime_vi = time.time()
