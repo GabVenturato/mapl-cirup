@@ -150,15 +150,15 @@ class DDC:
 
         ddc._graph = tf.function(ddc._max_eu_exec)
         # useless execution to force the graph initialisation already
-        utilities: Dict[int, float] = dict()
-        for u_idx in range(0, 2**len(ddc._state_vars)):
-            var = 'u' + str(u_idx)
-            index = ddc._var2node[var].pos
-            if index != ddc._false:
-                assert index in ddc._label, "Utility label not existing"
-                utilities[index] = 0
-            u_idx += 1
-        ddc._graph(ddc._states, utilities)
+        # utilities: Dict[int, float] = dict()
+        # for u_idx in range(0, 2**len(ddc._state_vars)):
+        #     var = 'u' + str(u_idx)
+        #     index = ddc._var2node[var].pos
+        #     if index != ddc._false:
+        #         assert index in ddc._label, "Utility label not existing"
+        #         utilities[index] = 0
+        #     u_idx += 1
+        # ddc._graph(ddc._states, utilities)
 
         return ddc
 
