@@ -279,7 +279,7 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        utility = tf.zeros(2**len(self._state_vars), dtype=tf.float64)
+        utility = tf.zeros(2**len(self._state_vars), dtype=tf.float32)
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:

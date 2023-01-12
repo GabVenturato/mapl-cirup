@@ -35,7 +35,7 @@ class DDC:
         self._label: Dict[int, Label] = dict()
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
-        self._states: Dict[int, np.array] = dict()
+        self._states: Dict[int, tf.Tensor] = dict()
         self._meu_semiring = MEUSemiring()
         self._discount = discount
         self._graph = None
@@ -126,8 +126,8 @@ class DDC:
         # states_placeholders: Dict[int, bool] = dict()
         var_num: int = len(ddc._state_vars)
         rep: int = 0
-        pos_base = tf.constant([1, 0], dtype=tf.float64)
-        neg_base = tf.constant([0, 1], dtype=tf.float64)
+        pos_base = tf.constant([1, 0], dtype=tf.float32)
+        neg_base = tf.constant([0, 1], dtype=tf.float32)
         for var in ddc._state_vars:
             var_num -= 1
             index = ddc._var2node[var]
@@ -149,6 +149,16 @@ class DDC:
         # ddc._graph = tf.keras.Model(inputs=(states_placeholders, util_placeholders), outputs=output)
 
         ddc._graph = tf.function(ddc._max_eu_exec)
+        # useless execution to force the graph initialisation already
+        utilities: Dict[int, float] = dict()
+        for u_idx in range(0, 2**len(ddc._state_vars)):
+            var = 'u' + str(u_idx)
+            index = ddc._var2node[var].pos
+            if index != ddc._false:
+                assert index in ddc._label, "Utility label not existing"
+                utilities[index] = 0
+            u_idx += 1
+        ddc._graph(ddc._states, utilities)
 
         return ddc
 
