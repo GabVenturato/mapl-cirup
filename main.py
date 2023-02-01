@@ -28,6 +28,7 @@ def main(argv):
     print("Value iteration time: %s" % mc.value_iteration_time())
     print("Total time: %s" % mc.tot_time())
     print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')
+    # mc.view_dot()
     # mc.print_explicit_policy()
 
 
