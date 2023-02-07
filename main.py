@@ -91,33 +91,33 @@ def main(argv):
                         try:
                             subprocess.run(["./examples/executables/spudd-linux", input_file, "-o", res_dir + "/spudd"],
                                            timeout=TIMEOUT)
+
+                            # find stats
+                            size = "na"
+                            vi_time = "na"
+                            iterations = "na"
+                            size_pattern = re.compile("Total number of nodes allocated:\s([0-9]+)")
+                            vi_time_pattern = re.compile("\sFinal execution time:\s+([0-9\.]+)")
+                            iterations_pattern = re.compile("\sIterations to convergence\s([0-9]+)")
+
+                            for line in open(res_dir + "/spudd-stats.dat"):
+                                match = re.search(size_pattern, line)
+                                if match:
+                                    size = match.group(1)
+                                match = re.search(vi_time_pattern, line)
+                                if match:
+                                    vi_time = match.group(1)
+                                match = re.search(iterations_pattern, line)
+                                if match:
+                                    iterations = match.group(1)
+
+                            fres.write("%s,%s,%s,%s,na,%s,%s,%s\n" %
+                                       (input_file, discount, error, size, vi_time, vi_time, iterations))
+                            os.remove(res_dir + "/spudd-stats.dat")
                         except subprocess.TimeoutExpired:
                             fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
 
-                        # find stats
-                        size = "na"
-                        vi_time = "na"
-                        iterations = "na"
-                        size_pattern = re.compile("Total number of nodes allocated:\s([0-9]+)")
-                        vi_time_pattern = re.compile("\sFinal execution time:\s+([0-9\.]+)")
-                        iterations_pattern = re.compile("\sIterations to convergence\s([0-9]+)")
-
-                        for line in open(res_dir + "/spudd-stats.dat"):
-                            match = re.search(size_pattern, line)
-                            if match:
-                                size = match.group(1)
-                            match = re.search(vi_time_pattern, line)
-                            if match:
-                                vi_time = match.group(1)
-                            match = re.search(iterations_pattern, line)
-                            if match:
-                                iterations = match.group(1)
-
-                        fres.write("%s,%s,%s,%s,na,%s,%s,%s\n" %
-                                   (input_file, discount, error, size, vi_time, vi_time, iterations))
-
                         fres.flush()
-                        os.remove(res_dir + "/spudd-stats.dat")
     else:
         if args.file is None:
             input_file = input("File path: ")
