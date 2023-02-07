@@ -1,14 +1,123 @@
 import sys
+import os
+import datetime
+import subprocess
+import multiprocessing
+import re
 
 from problog.util import init_logger
 from mapl_cirup import MaplCirup
+
+TIMEOUT = 5 * 60  # seconds
+
+
+def run_experiment(input_file, discount, error, res):
+    mc = MaplCirup(input_file)
+    res.put((mc.size(), mc.compile_time()))
+    mc.value_iteration(discount=discount, error=error)
+    res.put((mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
 
 
 def main(argv):
     args = argparser().parse_args(argv)
 
+    # create directory to save results
+    res_dir = 'results'
+    if not os.path.exists(res_dir):
+        os.makedirs(res_dir)
+
     if args.experiments:
-        print("I'll run the experimental evaluation")
+        print("=== Experimental Evaluation ===")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        with open(res_dir + '/' + timestamp + '_exp-eval.csv', 'w') as fres:
+            header = "filename,discount,error,circuit_size,compile_time,vi_time,tot_time,vi_iterations\n"
+            fres.write(header)
+
+            # mapl-cirup
+            print("\n\nMAPL-CIRUP\n")
+            for root, dirs, files in os.walk("./examples"):
+                for file in files:
+                    if file.endswith(".pl"):
+                        input_file = os.path.join(root, file)
+                        print("\n\n-> Executing mapl-cirup on %s..." % input_file)
+                        res = multiprocessing.Queue()
+                        discount = 0.9
+                        error = 0.1
+                        p = multiprocessing.Process(target=run_experiment, args=(input_file, discount, error, res))
+                        p.start()
+                        p.join(TIMEOUT)
+
+                        if p.is_alive():
+                            p.kill()
+
+                            if res.empty():
+                                # compilation didn't finish
+                                fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
+                            else:
+                                # compilation finished, but value iteration not
+                                size, compile_time = res.get()
+                                fres.write("%s,%s,%s,%s,%s,na,%s,na\n" %
+                                           (input_file, discount, error, size, compile_time, compile_time))
+                        else:
+                            # everything finished
+                            size, compile_time = res.get()
+                            vi_time, tot_time, iterations = res.get()
+                            fres.write("%s,%s,%s,%s,%s,%s,%s,%s\n" %
+                                       (input_file, discount, error, size, compile_time, vi_time, tot_time, iterations))
+
+                        fres.flush()
+
+            # spudd
+            print("\n\nSPUDD\n")
+            for root, dirs, files in os.walk("./examples"):
+                for file in files:
+                    if file.endswith(".dat"):
+                        input_file = os.path.join(root, file)
+                        print("\n\n-> Executing spudd on %s..." % input_file)
+
+                        # find discount and error in input file
+                        discount = "na"
+                        error = "na"
+                        discount_pattern = re.compile("discount\s+([0-9\.]+)")
+                        error_pattern = re.compile("tolerance\s+([0-9\.]+)")
+                        for line in open(input_file):
+                            match = re.search(discount_pattern, line)
+                            if match:
+                                discount = round(float(match.group(1)), 2)
+                            match = re.search(error_pattern, line)
+                            if match:
+                                error = match.group(1)
+
+                        try:
+                            subprocess.run(["./examples/executables/spudd-linux", input_file, "-o", res_dir + "/spudd"],
+                                           timeout=TIMEOUT)
+                        except subprocess.TimeoutExpired:
+                            fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
+
+                        # find stats
+                        size = "na"
+                        vi_time = "na"
+                        iterations = "na"
+                        size_pattern = re.compile("Total number of nodes allocated:\s([0-9]+)")
+                        vi_time_pattern = re.compile("\sFinal execution time:\s+([0-9\.]+)")
+                        iterations_pattern = re.compile("\sIterations to convergence\s([0-9]+)")
+
+                        for line in open(res_dir + "/spudd-stats.dat"):
+                            match = re.search(size_pattern, line)
+                            if match:
+                                size = match.group(1)
+                            match = re.search(vi_time_pattern, line)
+                            if match:
+                                vi_time = match.group(1)
+                            match = re.search(iterations_pattern, line)
+                            if match:
+                                iterations = match.group(1)
+
+                        fres.write("%s,%s,%s,%s,na,%s,%s,%s\n" %
+                                   (input_file, discount, error, size, vi_time, vi_time, iterations))
+
+                        fres.flush()
+                        os.remove(res_dir + "/spudd-stats.dat")
     else:
         if args.file is None:
             input_file = input("File path: ")
