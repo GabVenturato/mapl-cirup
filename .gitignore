@@ -1,4 +1,5 @@
 .idea
+.vs_code
 .DS_Store
 *.gv*
 results
