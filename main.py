@@ -30,10 +30,11 @@ def main(argv):
         print("=== Experimental Evaluation ===")
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         with open(res_dir + '/' + timestamp + '_exp-eval.csv', 'w') as fres:
-            header = "filename,discount,error,circuit_size,compile_time,vi_time,tot_time,vi_iterations\n"
+            header = "solver,filename,timeout,discount,error,circuit_size,compile_time,vi_time,tot_time,vi_iterations\n"
             fres.write(header)
 
             # mapl-cirup
+            solver = "mapl-cirup"
             print("\n\nMAPL-CIRUP\n")
             for root, dirs, files in os.walk("./examples"):
                 for file in files:
@@ -52,22 +53,26 @@ def main(argv):
 
                             if res.empty():
                                 # compilation didn't finish
-                                fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
+                                fres.write("%s,%s,%s,%s,%s,na,na,na,na,na\n" %
+                                           (solver, input_file, TIMEOUT, discount, error))
                             else:
                                 # compilation finished, but value iteration not
                                 size, compile_time = res.get()
-                                fres.write("%s,%s,%s,%s,%s,na,%s,na\n" %
-                                           (input_file, discount, error, size, compile_time, compile_time))
+                                fres.write("%s,%s,%s,%s,%s,%s,%s,na,%s,na\n" %
+                                           (solver, input_file, TIMEOUT, discount, error, size, compile_time,
+                                            compile_time))
                         else:
                             # everything finished
                             size, compile_time = res.get()
                             vi_time, tot_time, iterations = res.get()
-                            fres.write("%s,%s,%s,%s,%s,%s,%s,%s\n" %
-                                       (input_file, discount, error, size, compile_time, vi_time, tot_time, iterations))
+                            fres.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" %
+                                       (solver, input_file, TIMEOUT, discount, error, size, compile_time, vi_time,
+                                        tot_time, iterations))
 
                         fres.flush()
 
             # spudd
+            solver = "spudd"
             print("\n\nSPUDD\n")
             for root, dirs, files in os.walk("./examples"):
                 for file in files:
@@ -113,12 +118,14 @@ def main(argv):
                                 if match:
                                     iterations = match.group(1)
 
-                            fres.write("%s,%s,%s,%s,na,%s,%s,%s\n" %
-                                       (input_file, discount, error, size, vi_time, vi_time, iterations))
+                            fres.write("%s,%s,%s,%s,%s,%s,na,%s,%s,%s\n" %
+                                       (solver, input_file, TIMEOUT, discount, error, size, vi_time, vi_time,
+                                        iterations))
                             os.remove(res_dir + "/spudd-stats.dat")
                         except subprocess.TimeoutExpired:
                             spudd_proc.kill()
-                            fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
+                            fres.write("%s,%s,%s,%s,%s,na,na,na,na,na\n" %
+                                       (solver, input_file, TIMEOUT, discount, error))
 
                         fres.flush()
     else:
