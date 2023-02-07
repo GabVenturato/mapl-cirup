@@ -89,8 +89,10 @@ def main(argv):
                                 error = match.group(1)
 
                         try:
-                            subprocess.run(["./examples/executables/spudd-linux", input_file, "-o", res_dir + "/spudd"],
-                                           timeout=TIMEOUT)
+                            spudd_proc = subprocess.Popen(
+                                ["./examples/executables/spudd-linux", input_file, "-o", res_dir + "/spudd"]
+                            )
+                            spudd_proc.communicate(timeout=TIMEOUT)
 
                             # find stats
                             size = "na"
@@ -106,7 +108,7 @@ def main(argv):
                                     size = match.group(1)
                                 match = re.search(vi_time_pattern, line)
                                 if match:
-                                    vi_time = match.group(1)
+                                    vi_time = round(float(match.group(1)), 2)
                                 match = re.search(iterations_pattern, line)
                                 if match:
                                     iterations = match.group(1)
@@ -115,6 +117,7 @@ def main(argv):
                                        (input_file, discount, error, size, vi_time, vi_time, iterations))
                             os.remove(res_dir + "/spudd-stats.dat")
                         except subprocess.TimeoutExpired:
+                            spudd_proc.kill()
                             fres.write("%s,%s,%s,na,na,na,na,na\n" % (input_file, discount, error))
 
                         fres.flush()
