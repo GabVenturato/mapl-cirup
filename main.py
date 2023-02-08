@@ -12,6 +12,7 @@ from mapl_cirup import MaplCirup
 TIMEOUT = 5 * 60  # seconds
 RUNS = 10
 
+
 def run_experiment(input_file, discount, error, res):
     mc = MaplCirup(input_file)
     res.put((mc.size(), mc.compile_time()))
