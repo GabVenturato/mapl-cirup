@@ -50,7 +50,7 @@ def run_experimental_evaluation():
 
                         # execute experiments
                         input_file = os.path.join(root, file)
-                        print("\n\n-> Executing mapl-cirup on %s..." % input_file)
+                        print("\n\n-> Executing mapl-cirup (run %s) on %s..." % (run, input_file))
                         res = multiprocessing.Queue()
                         discount = 0.9
                         error = 0.1
@@ -63,8 +63,8 @@ def run_experimental_evaluation():
 
                             if res.empty():
                                 # compilation didn't finish
-                                fres.write("%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na\n" %
-                                           (run, solver, input_file, family, TIMEOUT, discount, error))
+                                fres.write("%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na\n" %
+                                           (run, solver, input_file, family, var_num, TIMEOUT, discount, error))
                             else:
                                 # compilation finished, but value iteration not
                                 size, compile_time = res.get()
@@ -85,6 +85,7 @@ def run_experimental_evaluation():
             solver = "spudd"
             print("\n\nSPUDD\n")
             for root, dirs, files in os.walk("./examples"):
+                family = os.path.basename(os.path.normpath(root))
                 for file in files:
                     if file.endswith(".dat"):
                         # retrieve var number
@@ -96,7 +97,7 @@ def run_experimental_evaluation():
 
                         # execute experiments
                         input_file = os.path.join(root, file)
-                        print("\n\n-> Executing spudd on %s..." % input_file)
+                        print("\n\n-> Executing spudd (run %s) on %s..." % (run, input_file))
 
                         # find discount and error in input file
                         discount = "na"
