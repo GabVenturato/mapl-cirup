@@ -1,19 +1,5 @@
 % COFFEE
-% There is a robot that has to deliver coffee. There is a user in an office.
-% There is a shop where the robot can get coffee. When moving between the two
-% places (shop and office) the robot has to go outsite the building and it might
-% rain. The robot can get an umbrella from the office. The possible actions are:
-% - move: the robot moves from one place to the other
-% - delc: the robot delivers the coffee to the user
-% - getu: the robot gets an umbrella (it can get it only from the office)
-% - buyc: the robot buys a coffee (only from the shop)
-% The state variables are:
-% - huc: has user coffee?
-% - hrc: has robot coffee?
-% - wet: true if the robot is wet
-% - raining: true if it's raining
-% - umbrella: true if the robot has the umbrella
-% - office: true is the robot is in the office, false if it's in the shop
+% TODO: description
 
 %% Decisions
 ?::move; ?::delc; ?::getu; ?::buyc.
@@ -32,7 +18,9 @@ state_variables(huc, hrc, wet, raining, umbrella, office).
 0.75::x(raining) :- raining.
 0.3::x(raining) :- \+raining.
 
-%huc :- raining.
+x(umbrella) :- x(raining), raining.
+%0.8::x(wet) :- x(raining), \+x(umbrella).
+%0.95::x(umbrella) :- x(umbrella)
 
 %% Transition
 % move

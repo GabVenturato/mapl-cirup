@@ -4,8 +4,7 @@
 % If you move you pay a cost (moving requires energies). If you stay and not get
 % hit you get a positive reward. Also, when you get hit the monky celebrates and
 % it's less likely it will hit you immediately afterwards. Finally, if you don't
-% move, it is more likely you get hit.
-% TODO: Update description
+% move, it is more likely you get hit. If you get hit you might also stink.
 
 % decisions
 ?::move.
@@ -14,7 +13,7 @@
 state_variables(hit, stink).
 
 % model
-0.5::x(stink) :- stink.
+0.6::x(stink) :- stink.
 
 % transition
 0.2::x(hit) :- hit.

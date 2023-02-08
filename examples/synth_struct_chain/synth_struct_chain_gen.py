@@ -6,8 +6,6 @@ from random import seed, random, randint
 
 seed(1)  # seed random number generator
 
-VAR_NUM = 4
-DEC_NUM = 1
 VAR_NAME = 's'
 VAR_IDX_CHAR = '_'
 DEC_NAME = 'd'
@@ -202,20 +200,22 @@ def gen_spudd_model(dec_num, var_num, reward):
 
 
 if __name__ == '__main__':
-    trans = gen_transition(DEC_NUM, VAR_NUM)
-    print("\nTransition:")
-    for el in trans:
-        print(str(el) + " => " + str(trans[el]))
+    for dec_num in range(2, 4):
+        for var_num in range(3, 6):
+            trans = gen_transition(dec_num, var_num)
+            print("\nTransition:")
+            for el in trans:
+                print(str(el) + " => " + str(trans[el]))
 
-    print("\nStructure:")
-    struct = gen_structure(VAR_NUM)
-    for el in struct:
-        print(str(el) + " => " + str(struct[el]))
+            print("\nStructure:")
+            struct = gen_structure(var_num)
+            for el in struct:
+                print(str(el) + " => " + str(struct[el]))
 
-    print("\nReward:")
-    rew = gen_reward(DEC_NUM, VAR_NUM)
-    for el in rew:
-        print(str(el) + " => " + str(rew[el]))
+            print("\nReward:")
+            rew = gen_reward(dec_num, var_num)
+            for el in rew:
+                print(str(el) + " => " + str(rew[el]))
 
-    gen_mc_model(DEC_NUM, VAR_NUM, trans, struct, rew)
-    # gen_spudd_model(DEC_NUM, VAR_NUM, rew)
+            gen_mc_model(dec_num, var_num, trans, struct, rew)
+            gen_spudd_model(dec_num, var_num, rew)

@@ -1,5 +1,5 @@
-// coffee example
 (variables (huc yes no) (hrc yes no) (w yes no) (r yes no) (u yes no) (l office shop))
+
 action move
 	huc	(huc	(yes	(1.00 0.0))
 			(no 	(0.00 1.0)))
@@ -13,9 +13,10 @@ action move
 			(no	(0.30 0.70)))
 	u	(u	(yes	(1.00 0.00))
 			(no	(0.00 1.00)))
-	l	(l	(office	(0.10 0.90))
-			(shop	(0.90 0.10)))
+	l	(l	(office	(0.02 0.98))
+			(shop	(0.95 0.05)))
 endaction
+
 action delc
 	huc	(huc	(yes	(0.99 0.01))
 			(no	(hrc	(yes	(l	(office	(0.83 0.17))
@@ -34,6 +35,7 @@ action delc
 			(shop	(0.00 1.00)))
 
 endaction
+
 action getu
 	huc	(huc	(yes	(1.00 0.00))
 			(no	(0.00 1.00)))
@@ -49,6 +51,7 @@ action getu
 	l	(l	(office	(1.00 0.00))
 			(shop	(0.00 1.00)))
 endaction
+
 action buyc
 	huc	(huc	(yes	(1.00 0.00))
 			(no	(0.00 1.00)))
@@ -64,10 +67,16 @@ action buyc
 	l	(l	(office	(1.00 0.00))
 			(shop	(0.00 1.00)))
 endaction
-reward (huc	(yes	(w	(yes	(3.00))
-				(no	(5.00))))
-		(no	(w	(yes	(0.00))
-				(no	(-2.0)))))
-discount 0.900000 
-//horizon 1
+
+reward  (huc	(yes	(w	(yes	(3.00))
+				            (no	    (5.00))
+				        )
+	            )
+		        (no	    (w	(yes	(0.00))
+				            (no	    (-2.0))
+				        )
+				)
+	    )
+
+discount 0.900000
 tolerance 0.1
