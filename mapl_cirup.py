@@ -338,6 +338,9 @@ class MaplCirup:
     def iterations(self) -> int:
         return self._iterations_count
 
+    def variables_number(self) -> int:
+        return len(self._state_vars)
+
     def compile_time(self) -> float:
         """
         Returns the amount of time required for compilation.
