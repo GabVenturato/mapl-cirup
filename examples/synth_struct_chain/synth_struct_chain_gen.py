@@ -200,7 +200,7 @@ def gen_spudd_model(dec_num, var_num, reward):
 
 
 if __name__ == '__main__':
-    for dec_num in range(2, 4):
+    for dec_num in range(1, 2):
         for var_num in range(3, 6):
             trans = gen_transition(dec_num, var_num)
             print("\nTransition:")
@@ -218,4 +218,5 @@ if __name__ == '__main__':
                 print(str(el) + " => " + str(rew[el]))
 
             gen_mc_model(dec_num, var_num, trans, struct, rew)
-            gen_spudd_model(dec_num, var_num, rew)
+            if var_num <= 5:
+                gen_spudd_model(dec_num, var_num, rew)
