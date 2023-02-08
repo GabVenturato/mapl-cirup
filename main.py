@@ -124,6 +124,7 @@ def main(argv):
                                        (solver, input_file, family, TIMEOUT, discount, error, size, vi_time, vi_time,
                                         iterations))
                             os.remove(res_dir + "/spudd-stats.dat")
+                            os.remove(res_dir + "/spudd-OPTDual.ADD")
                         except subprocess.TimeoutExpired:
                             spudd_proc.kill()
                             fres.write("%s,%s,%s,%s,%s,%s,na,na,na,na,na\n" %
