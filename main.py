@@ -9,7 +9,7 @@ from collections import namedtuple
 from problog.util import init_logger
 from mapl_cirup import MaplCirup
 
-TIMEOUT = 5 * 60  # seconds
+TIMEOUT = 10 * 60  # seconds
 RUNS = 10
 
 
