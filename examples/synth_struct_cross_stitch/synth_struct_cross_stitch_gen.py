@@ -142,10 +142,14 @@ def gen_spudd_transition(var_num):
             distribution = []
             trans_state = dict()
             trans_state[VAR_NAME + str(i)] = True
-            parents = 4 if i > 1 else 2
+            parents = 4 if i > 2 else 2
             for j in range(1, parents + 1):
                 trans_state[VAR_NAME + str(i-1) + VAR_IDX_CHAR + str(j)] = True
-            children = 4 if i < var_num else 2
+            children = 4
+            if i < var_num:
+                children = 2
+            else:
+                children = 0
             for j in range(1, children + 1):
                 trans_state[VAR_NAME + str(i+1) + VAR_IDX_CHAR + str(j)] = True
 
