@@ -1,6 +1,4 @@
-# import os, os.path, sys, argparse
 import pandas as pd
-# import plotly
 import plotly.express as px
 import math
 
@@ -9,19 +7,10 @@ pio.kaleido.scope.mathjax = None
 
 TIMEOUT = 600
 
-# Function for checking if a string "s" is a number.
-# taken from https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-is-a-number-float#354073
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-
 
 if __name__ == "__main__":
     df = pd.read_csv('../results/exp-eval.csv')
-    df = df.loc[df['family'] == 'synth_struct_chain']
+    df = df.loc[df['family'] == 'synth_struct_cross_stitch']
     df = df[['run', 'solver', 'var_num', 'vi_time']]
     df = df.replace('na', TIMEOUT)
     df['var_num'] = df['var_num'].astype(int)
@@ -32,9 +21,9 @@ if __name__ == "__main__":
     df = df.groupby(['solver', 'var_num'], as_index=False).agg({'vi_time': ['mean', 'std']})
     df.columns = ['solver', 'var_num', 'time', 'std']
 
-    df = df[df['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
-    df = df[df['var_num'] <= 8]  # skip >= 8 because all timeouts
-    max_vars = 8
+    # df = df[df['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
+    # df = df[df['var_num'] <= 8]  # skip >= 8 because all timeouts
+    max_vars = 10
 
     fig = px.line(df, x='var_num', y='time', color='solver', markers=True,
                   labels={
@@ -49,7 +38,7 @@ if __name__ == "__main__":
                   line_color="grey",
                   line_dash="dot",
                   )
-    fig.add_annotation(y=math.log10(TIMEOUT), x=max_vars - 0.5,
+    fig.add_annotation(y=math.log10(TIMEOUT), x=max_vars-0.5,
                        text="Timeout (" + str(TIMEOUT) + "s)",
                        showarrow=False,
                        yshift=20,
@@ -81,4 +70,4 @@ if __name__ == "__main__":
     )
 
     # fig.show()
-    fig.write_image('synth_struct_chain_plot.pdf')
+    fig.write_image('synth_struct_cross_stitch_plot.pdf')
