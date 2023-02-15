@@ -22,19 +22,30 @@ def is_number(s):
 if __name__ == "__main__":
     df = pd.read_csv('../results/exp-eval.csv')
     df = df.loc[df['family'] == 'synth_struct_chain']
-    df = df[['run', 'solver', 'var_num', 'vi_time']]
-    df = df.replace('na', TIMEOUT)
-    df['var_num'] = df['var_num'].astype(int)
-    df['vi_time'] = df['vi_time'].astype(float)
-    # max_vars = df['var_num'].max()
-    df = df.sort_values(by=['var_num'])
-
-    df = df.groupby(['solver', 'var_num'], as_index=False).agg({'vi_time': ['mean', 'std']})
-    df.columns = ['solver', 'var_num', 'time', 'std']
 
     df = df[df['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
     df = df[df['var_num'] <= 8]  # skip >= 8 because all timeouts
+    # max_vars = df['var_num'].max()
     max_vars = 8
+
+    df = df.replace('na', TIMEOUT)
+    df = df.sort_values(by=['var_num'])
+    df['var_num'] = df['var_num'].astype(int)
+    df['vi_time'] = df['vi_time'].astype(float)
+    df['tot_time'] = df['tot_time'].astype(float)
+
+    df_compilation = df.loc[df['solver'] == 'mapl-cirup']
+    df_compilation = df_compilation[['run', 'solver', 'var_num', 'tot_time']]
+    df_compilation = df_compilation.replace('mapl-cirup', 'maple-cirup (kc+vi)')
+    df_compilation = df_compilation.groupby(['solver', 'var_num'], as_index=False).agg({'tot_time': ['mean', 'std']})
+    df_compilation.columns = ['solver', 'var_num', 'time', 'std']
+
+    df = df[['run', 'solver', 'var_num', 'vi_time']]
+    df = df.replace('mapl-cirup', 'maple-cirup (vi)')
+    df = df.groupby(['solver', 'var_num'], as_index=False).agg({'vi_time': ['mean', 'std']})
+    df.columns = ['solver', 'var_num', 'time', 'std']
+
+    df = pd.concat([df, df_compilation])
 
     fig = px.line(df, x='var_num', y='time', color='solver', markers=True,
                   labels={
