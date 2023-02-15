@@ -48,23 +48,36 @@ def _get_synth_chain_data():
 def _get_synth_cross_stitch_data():
     df = pd.read_csv('../results/exp-eval.csv')
     df = df.loc[df['family'] == 'synth_struct_cross_stitch']
-    df = df[['run', 'solver', 'var_num', 'vi_time']]
+
     df = df.replace('na', TIMEOUT)
+    df = df.sort_values(by=['var_num'])
     df['var_num'] = df['var_num'].astype(int)
     df['vi_time'] = df['vi_time'].astype(float)
-    # max_vars = df['var_num'].max()
-    df = df.sort_values(by=['var_num'])
+    df['tot_time'] = df['tot_time'].astype(float)
 
+    df_compilation = df.loc[df['solver'] == 'mapl-cirup']
+    df_compilation = df_compilation[['run', 'solver', 'var_num', 'tot_time']]
+    df_compilation = df_compilation.replace('mapl-cirup', 'maple-cirup (kc+vi)')
+    df_compilation = df_compilation.groupby(['solver', 'var_num'], as_index=False).agg({'tot_time': ['mean', 'std']})
+    df_compilation.columns = ['solver', 'var_num', 'time', 'std']
+
+    df = df[['run', 'solver', 'var_num', 'vi_time']]
+    df = df.replace('mapl-cirup', 'maple-cirup (vi)')
     df = df.groupby(['solver', 'var_num'], as_index=False).agg({'vi_time': ['mean', 'std']})
     df.columns = ['solver', 'var_num', 'time', 'std']
+
+    df = pd.concat([df, df_compilation])
     return df
 
 
 def create_plot(out_filename=None):
     color_spudd = "tab:red"
-    color_mapl = "tab:blue"
+    color_mapl_vi = "tab:blue"
+    color_mapl_kcvi = "tab:green"
     label_spudd = "SPUDD"
-    label_mapl = "\\texttt{mapl-cirup}"
+    label_mapl_vi = "\\texttt{mapl-cirup} (VI)"
+    label_mapl_kcvi = "\\texttt{mapl-cirup} (KC+VI)"
+
     #
     # get data
     #
@@ -74,12 +87,12 @@ def create_plot(out_filename=None):
     #
     # start double column plot
     #
-    plt.style.use("./tex.mplstyle")
+    plt.style.use("tex.mplstyle")
     fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
     #fig.suptitle(f"instance {index + 1}", fontsize=18)
 
     #
-    # chain
+    # cross-stitch
     #
     data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd"]
     x = data_spudd["var_num"]
@@ -87,11 +100,17 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[0].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
-    data_mapl = data_cross_stitch[data_cross_stitch["solver"] == "mapl-cirup"]
-    x = data_mapl["var_num"]
-    y = data_mapl["time"]
+    data_mapl_vi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (vi)"]
+    x = data_mapl_vi["var_num"]
+    y = data_mapl_vi["time"]
     assert len(x) > 0
-    axs[0].plot(x, y, color=color_mapl, marker=".", label=label_mapl)
+    axs[0].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
+
+    data_mapl_kcvi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (kc+vi)"]
+    x = data_mapl_kcvi["var_num"]
+    y = data_mapl_kcvi["time"]
+    assert len(x) > 0
+    axs[0].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
     axs[0].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
@@ -103,7 +122,7 @@ def create_plot(out_filename=None):
     axs[0].grid(axis="y")
 
     #
-    # cross-stitch
+    # chain
     #
     data_spudd = data_chain[data_chain["solver"] == "spudd"]
     x = data_spudd["var_num"]
@@ -111,11 +130,17 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
-    data_mapl = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
-    x = data_mapl["var_num"]
-    y = data_mapl["time"]
+    data_mapl_vi = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
+    x = data_mapl_vi["var_num"]
+    y = data_mapl_vi["time"]
     assert len(x) > 0
-    axs[1].plot(x, y, color=color_mapl, marker=".", label=label_mapl)
+    axs[1].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
+
+    data_mapl_kcvi = data_chain[data_chain["solver"] == "maple-cirup (kc+vi)"]
+    x = data_mapl_kcvi["var_num"]
+    y = data_mapl_kcvi["time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
     axs[1].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
@@ -132,7 +157,7 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', ncol=2, fancybox=False, shadow=False)
+    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=3, frameon=False, fancybox=False, shadow=False)
     fig.tight_layout()
     if out_filename is None:
         plt.show()
