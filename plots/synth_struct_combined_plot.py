@@ -125,6 +125,7 @@ def create_plot(out_filename=None):
     # axs[1].set_ylabel("time (s)")
     axs[1].set_xlabel("number of variables")
     axs[1].grid(axis="y")
+    # axs[1].tick_params(axis='x', colors='white')
     # axs[1].legend()
 
     #

@@ -10,4 +10,4 @@ xtick.major.width: 0.6
 ytick.major.width: 0.6
 xtick.major.size: 2
 ytick.major.size: 2
-lines.markersize: 20
+lines.markersize: 8
