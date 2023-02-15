@@ -14,6 +14,7 @@ def is_number(s):
     except ValueError:
         return False
 
+
 def _get_synth_chain_data():
     df = pd.read_csv('../results/exp-eval.csv')
     df = df.loc[df['family'] == 'synth_struct_chain']
@@ -80,13 +81,13 @@ def create_plot(out_filename=None):
     #
     # chain
     #
-    data_spudd = data_chain[data_chain["solver"] == "spudd"]
+    data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd"]
     x = data_spudd["var_num"]
     y = data_spudd["time"]
     assert len(x) > 0
     axs[0].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
-    data_mapl = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
+    data_mapl = data_cross_stitch[data_cross_stitch["solver"] == "mapl-cirup"]
     x = data_mapl["var_num"]
     y = data_mapl["time"]
     assert len(x) > 0
@@ -96,7 +97,7 @@ def create_plot(out_filename=None):
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
 
     axs[0].set_yscale('log')
-    axs[0].set_title("chain")
+    axs[0].set_title("cross-stitch")
     axs[0].set_ylabel("time (s)")
     axs[0].set_xlabel("number of variables")
     axs[0].grid(axis="y")
@@ -104,7 +105,7 @@ def create_plot(out_filename=None):
     #
     # cross-stitch
     #
-    data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd"]
+    data_spudd = data_chain[data_chain["solver"] == "spudd"]
     x = data_spudd["var_num"]
     y = data_spudd["time"]
     assert len(x) > 0
@@ -120,7 +121,7 @@ def create_plot(out_filename=None):
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
 
     axs[1].set_yscale('log')
-    axs[1].set_title("cross-stitch")
+    axs[1].set_title("chain")
     # axs[1].set_ylabel("time (s)")
     axs[1].set_xlabel("number of variables")
     axs[1].grid(axis="y")
@@ -130,7 +131,7 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', ncol=2, fancybox=True, shadow=True)
+    fig.legend(handles, labels, loc='lower center', ncol=2, fancybox=False, shadow=False)
     fig.tight_layout()
     if out_filename is None:
         plt.show()
