@@ -36,6 +36,7 @@ class MaplCirup:
     _utilities: Dict[Term, List[Term]] = {}                     # Added (expected) utility parameters with their state
     _iterations_count: int = 0                                  # Number of iterations for policy convergence
     _vi_time = None                                             # Time required for value iteration
+    _tf_graph_time = None                                       # Time required to produce the TensorFlow graph
     _minimisation_on = False                                    # Activate the SDD minimisation
     _minimize_time = 0                                          # Default minimisation time
 
@@ -267,8 +268,6 @@ class MaplCirup:
             return And(terms.pop(), MaplCirup.big_and(terms))
 
     def value_iteration(self, discount: float = None, error: float = None, horizon: int = None) -> None:
-        starttime_vi = time.time()
-
         if discount is not None:
             self._discount = discount
             self._ddc.set_discount(self._discount)
@@ -280,10 +279,18 @@ class MaplCirup:
             self._horizon = horizon
 
         utility = tf.zeros(2**len(self._state_vars), dtype=tf.float32)
+
+        starttime_tf_graph = time.time()
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
                     break
+
+            if self._iterations_count == 1:
+                # I have created the graph and can start timing VI
+                endtime_tf_graph = time.time()
+                self._tf_graph_time = endtime_tf_graph - starttime_tf_graph
+                starttime_vi = time.time()
 
             new_utility = self._ddc.max_eu(utility)
 
@@ -291,7 +298,7 @@ class MaplCirup:
             utility = new_utility
             self._iterations_count += 1
 
-            print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
+            # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
 
             if self._discount < 1:
                 if horizon is not None:
@@ -356,8 +363,13 @@ class MaplCirup:
     def value_iteration_time(self) -> float:
         return self._vi_time
 
+    def tf_graph_time(self) -> float:
+        return self._tf_graph_time
+
     def tot_time(self) -> float:
-        return self._compile_time + self._minimize_time + (self._vi_time if self._vi_time is not None else 0)
+        return self._compile_time + self._minimize_time \
+            + (self._vi_time if self._vi_time is not None else 0) \
+            + (self._tf_graph_time if self._tf_graph_time is not None else 0)
 
     def view_dot(self) -> None:
         """

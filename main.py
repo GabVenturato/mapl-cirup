@@ -25,6 +25,7 @@ def main(argv):
     # mc.value_iteration(horizon=10)
     # mc.value_iteration()  # = immediate reward
 
+    print("TF Graph time: %s" % mc.tf_graph_time())
     print("Value iteration time: %s" % mc.value_iteration_time())
     print("Total time: %s" % mc.tot_time())
     print('\nNumber of iterations: ' + str(mc.iterations()) + '\n')

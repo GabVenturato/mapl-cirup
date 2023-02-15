@@ -138,7 +138,7 @@ class DDC:
             rep += 1
 
         # Create keras model
-        print("Create Keras model...")
+        # print("Create Keras model...")
         # util_placeholders: Dict[int, float] = dict()
         # for u_idx in range(0, 2**len(ddc._state_vars)):
         #     var = 'u' + str(u_idx)
