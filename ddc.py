@@ -25,7 +25,7 @@ class DDC:
     _false = -1
     _true = -1
     _decisions: Set[int] = set()
-    _semiring = None
+    _semiring = MEUSemiring()
     _id = 1
 
     def __init__(self):
@@ -140,8 +140,17 @@ class DDC:
                 ), "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
-
-        self.node2int, self.int2node, self.tensor_eu = self.eu2tensor(ddc._label)
+        # define is_utility
+        ddc._node2util = dict()
+        ddc._is_utility: Dict[int,bool] = dict()
+        for node in ddc._children.keys():
+            ddc._is_utility[node] = False
+            for i in range(0, 2**len(ddc._state_vars)):
+                if ddc._var2node['u' + str(i)].pos == node:
+                    ddc._is_utility[node] = True
+                    ddc._node2util[node] = i
+                    break
+        assert (len(ddc._node2util) == 2**len(ddc._state_vars)), "node2util has wrong length"
 
         # Create vectorised evidence for state variables
         var_num: int = len(ddc._state_vars)
@@ -150,31 +159,18 @@ class DDC:
             var_num -= 1
             index = ddc._var2node[var]
             ddc._states[index.pos] = tf.convert_to_tensor(
-                np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num)
+                np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num),
+                dtype=tf.float32
             )
             ddc._states[index.neg] = tf.convert_to_tensor(
-                np.tile(np.repeat(np.array([0, 1]), 2**rep), 2**var_num)
+                np.tile(np.repeat(np.array([0, 1]), 2**rep), 2**var_num),
+                dtype=tf.float32
             )
             rep += 1
 
         ddc.max_eu_gpu = tf.function(ddc.max_eu)
 
         return ddc
-
-
-    @staticmethod
-    def eu2tensor(labels):
-        node2int = {}
-        int2node = {}
-        index=0
-        tensor_eu = []
-        for k, v in _labels.items():
-            node2int[k]=index
-            int2node[index] = k
-            index+=1
-            tensor_eu.append(v.eu)
-        tensor_eu = tf.convert_to_tensor(tensor_eu)
-        return node2int, int2node, tensor_eu
 
     def _compact_sdd(
         self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]
@@ -384,34 +380,29 @@ class DDC:
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def max_eu(self) -> tf.Tensor:
-        semiring = MEUSemiring()
-
+    def max_eu(self, new_utility: tf.Tensor) -> tf.Tensor:
         cache = dict()
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
-                cache[node] = semiring.one()
+                cache[node] = self._semiring.one()
             elif self._type[node] == NodeType.LITERAL:
+                (p, eu, m) = self._label[node]
+                if self._is_utility[node]:
+                    i = self._node2util[node]
+                    eu = new_utility[i]
                 if node in self._states:
-                    (p, eu, m) = self._label[node]
-                    
-                    if self.is_utility[node]:
-                        i = self.node2int[node]
-                        eu = self.tensor_eu[i]
-
-
-                    cache[node] = semiring.value(
+                    cache[node] = self._semiring.value(
                         Label(self._states[node], eu * self._states[node], m)
                     )
                 else:
-                    cache[node] = self._label[node]
+                    cache[node] = (p, eu, m)
             elif self._type[node] == NodeType.OR:
                 assert (
                     len(self._children[node]) > 0
                 ), "There is an OR node with no children"
                 total = cache[children[0]]
                 for child in children[1:]:
-                    total = semiring.plus(total, cache[child])
+                    total = self._semiring.plus(total, cache[child])
                 cache[node] = total
             elif self._type[node] == NodeType.AND:
                 assert (
@@ -419,11 +410,11 @@ class DDC:
                 ), "There is an AND node with no children"
                 total = cache[children[0]]
                 for child in children[1:]:
-                    total = semiring.times(total, cache[child])
+                    total = self._semiring.times(total, cache[child])
                 cache[node] = total
 
         ddc_eval = cache[self._root]
-        _, eu, _ = semiring.normalise(ddc_eval, ddc_eval)
+        _, eu, _ = self._semiring.normalise(ddc_eval, ddc_eval)
 
         return eu
 

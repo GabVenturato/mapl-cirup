@@ -28,8 +28,12 @@ class MEUSemiring:
             take_a = (p_b == 0) | ((p_a != 0) & (eu_a / p_a > eu_b / p_b))
             p_res = tf.where(take_a, p_a, p_b)
             eu_res = tf.where(take_a, eu_a, eu_b)
-            # print("max( (%s, %s), (%s, %s) ) = (%s, %s)" %
-            #       (a.prob, a.eu, b.prob, b.eu, p_res, eu_res))
+            # def return_a(): return a
+            # def return_b(): return b
+            # result = tf.case([(p_a == 0, return_b), (p_b == 0, return_a), (eu_a / p_a >= eu_b / p_b, return_a)],
+            #                  default=return_b, exclusive=True)
+            # print("max( (%s, %s, %s), (%s, %s, %s) ) = (%s, %s, %s)" %
+            #       (a.prob, a.eu, a.dec, b.prob, b.eu, b.dec, result.prob, result.eu, result.dec))
             return p_res, eu_res, True
         else:
             # print("(%s, %s) + (%s, %s) = (%s, %s)" %
@@ -42,18 +46,20 @@ class MEUSemiring:
         p_b, eu_b, max_b = b
         eu_n = p_a * eu_b + p_b * eu_a
         # print("(%s, %s) * (%s, %s) = (%s, %s)" %
-        #       (a.prob, a.eu, b.prob, b.eu, p_a * p_b, eu_n))
+        #       (p_a, eu_a, p_b, eu_b, p_a * p_b, eu_n))
         return p_a * p_b, eu_n, max_a or max_b
 
     @staticmethod
-    def value(a: Label):
+    def value(a):
         # Max: since all the decisions are on top (X-constrained SDDs), as long as there is some decisions, it means
         # we have to maximise. Because of the smoothness of the circuit we know the two sets are different.
         return a.prob, a.eu, len(a.dec) > 0
 
     @staticmethod
     def normalise(a, z):
-        return a.prob / z.prob, a.eu / z.prob, a.max
+        p_a, eu_a, max_a = a
+        p_z, _, _ = z
+        return p_a / p_z, eu_a / p_z, max_a
 
 
 class BestDecSemiring:
