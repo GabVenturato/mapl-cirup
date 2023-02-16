@@ -122,6 +122,8 @@ class DDC:
                 assert ddc_index.pos != ddc._false, "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
+        # here the labelling function is initialized
+
         # Create vectorised evidence for state variables
         # states_placeholders: Dict[int, bool] = dict()
         var_num: int = len(ddc._state_vars)
