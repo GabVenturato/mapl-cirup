@@ -140,6 +140,9 @@ class DDC:
                 ), "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
+
+        self.node2int, self.int2node, self.tensor_eu = self.eu2tensor(ddc._label)
+
         # Create vectorised evidence for state variables
         var_num: int = len(ddc._state_vars)
         rep: int = 0
@@ -157,6 +160,21 @@ class DDC:
         ddc.max_eu_gpu = tf.function(ddc.max_eu)
 
         return ddc
+
+
+    @staticmethod
+    def eu2tensor(labels):
+        node2int = {}
+        int2node = {}
+        index=0
+        tensor_eu = []
+        for k, v in _labels.items():
+            node2int[k]=index
+            int2node[index] = k
+            index+=1
+            tensor_eu.append(v.eu)
+        tensor_eu = tf.convert_to_tensor(tensor_eu)
+        return node2int, int2node, tensor_eu
 
     def _compact_sdd(
         self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]
@@ -376,6 +394,12 @@ class DDC:
             elif self._type[node] == NodeType.LITERAL:
                 if node in self._states:
                     (p, eu, m) = self._label[node]
+                    
+                    if self.is_utility[node]:
+                        i = self.node2int[node]
+                        eu = self.tensor_eu[i]
+
+
                     cache[node] = semiring.value(
                         Label(self._states[node], eu * self._states[node], m)
                     )
