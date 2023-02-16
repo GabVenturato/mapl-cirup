@@ -1,7 +1,7 @@
 """
 Dynamic Decision Circuit (DDC)
 """
-import torch
+import tensorflow as tf
 import numpy as np
 from typing import List, Dict, Set
 from enum import Enum
@@ -146,13 +146,15 @@ class DDC:
         for var in ddc._state_vars:
             var_num -= 1
             index = ddc._var2node[var]
-            ddc._states[index.pos] = torch.from_numpy(
+            ddc._states[index.pos] = tf.convert_to_tensor(
                 np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num)
             )
-            ddc._states[index.neg] = torch.from_numpy(
+            ddc._states[index.neg] = tf.convert_to_tensor(
                 np.tile(np.repeat(np.array([0, 1]), 2**rep), 2**var_num)
             )
             rep += 1
+
+        ddc.max_eu_gpu = tf.function(ddc.max_eu)
 
         return ddc
 
@@ -364,7 +366,7 @@ class DDC:
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def max_eu(self) -> torch.tensor:
+    def max_eu(self) -> tf.Tensor:
         semiring = MEUSemiring()
 
         cache = dict()
