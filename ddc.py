@@ -379,7 +379,6 @@ class DDC:
 
         return self._graph(self._states, utilities)
 
-    @tf.function
     def _max_eu_exec(self, states: Dict[int, bool], utilities: Dict[int, float]):
         cache = dict()
         for node, children in self._children.items():
