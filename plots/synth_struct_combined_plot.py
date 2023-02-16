@@ -4,15 +4,27 @@ import matplotlib.pyplot as plt
 import math
 
 TIMEOUT = 600
+CHAIN_FAMILY = 'synth_struct_chain'
+CROSS_STITCH_FAMILY = 'synth_struct_cross_stitch'
 
-# Function for checking if a string "s" is a number.
-# taken from https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-is-a-number-float#354073
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
+
+def _get_synth_gpu_data(family):
+    df_gpu = pd.read_csv('../results/exp-eval-gpu.csv')
+    df_gpu = df_gpu.loc[df_gpu['family'] == family]
+
+    df_gpu = df_gpu[df_gpu['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
+    df_gpu = df_gpu[df_gpu['var_num'] <= 8]  # skip >= 8 because all timeouts
+
+    df_gpu.loc[df_gpu['vi_time'] == 'na', 'tot_time'] = 'na'
+
+    df_gpu = df_gpu.replace('na', TIMEOUT)
+    df_gpu = df_gpu.sort_values(by=['var_num'])
+    df_gpu['var_num'] = df_gpu['var_num'].astype(int)
+    df_gpu['vi_time'] = df_gpu['vi_time'].astype(float)
+    df_gpu['tot_time'] = df_gpu['tot_time'].astype(float)
+    df_gpu = df_gpu[['var_num', 'vi_time', 'tot_time']]
+
+    return df_gpu
 
 
 def _get_synth_chain_data():
@@ -22,8 +34,9 @@ def _get_synth_chain_data():
     df = df[df['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
     df = df[df['var_num'] <= 8]  # skip >= 8 because all timeouts
     # max_vars = df['var_num'].max()
-    max_vars = 8
+    # max_vars = 8
 
+    df.loc[df['vi_time'] == 'na', 'tot_time'] = 'na'
     df = df.replace('na', TIMEOUT)
     df = df.sort_values(by=['var_num'])
     df['var_num'] = df['var_num'].astype(int)
@@ -49,6 +62,7 @@ def _get_synth_cross_stitch_data():
     df = pd.read_csv('../results/exp-eval.csv')
     df = df.loc[df['family'] == 'synth_struct_cross_stitch']
 
+    df.loc[df['vi_time'] == 'na', 'tot_time'] = 'na'
     df = df.replace('na', TIMEOUT)
     df = df.sort_values(by=['var_num'])
     df['var_num'] = df['var_num'].astype(int)
@@ -74,21 +88,29 @@ def create_plot(out_filename=None):
     color_spudd = "tab:red"
     color_mapl_vi = "tab:blue"
     color_mapl_kcvi = "tab:green"
+    color_mapl_gpu_vi = "tab:purple"
+    color_mapl_gpu_tot = "tab:pink"
     label_spudd = "SPUDD"
     label_mapl_vi = "\\texttt{mapl-cirup} (VI)"
     label_mapl_kcvi = "\\texttt{mapl-cirup} (KC+VI)"
+    label_mapl_gpu_vi = "\\texttt{mapl-cirup} (GPU, VI)"
+    label_mapl_gpu_tot = "\\texttt{mapl-cirup} (GPU, tot)"
 
     #
     # get data
     #
     data_chain = _get_synth_chain_data()
     data_cross_stitch = _get_synth_cross_stitch_data()
+    data_gpu_chain = _get_synth_gpu_data(CHAIN_FAMILY)
+    data_gpu_cross_stitch = _get_synth_gpu_data(CROSS_STITCH_FAMILY)
 
     #
     # start double column plot
     #
     plt.style.use("tex.mplstyle")
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
+    fig, axs = plt.subplots(nrows=1, ncols=2, sharey='row')
+    fig.set_figwidth(5)
+    fig.set_figheight(3)
     #fig.suptitle(f"instance {index + 1}", fontsize=18)
 
     #
@@ -111,6 +133,16 @@ def create_plot(out_filename=None):
     y = data_mapl_kcvi["time"]
     assert len(x) > 0
     axs[0].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
+
+    x = data_gpu_cross_stitch["var_num"]
+    y = data_gpu_cross_stitch["vi_time"]
+    assert len(x) > 0
+    axs[0].plot(x, y, color=color_mapl_gpu_vi, marker=".", label=label_mapl_gpu_vi)
+
+    x = data_gpu_cross_stitch["var_num"]
+    y = data_gpu_cross_stitch["tot_time"]
+    assert len(x) > 0
+    axs[0].plot(x, y, color=color_mapl_gpu_tot, marker=".", label=label_mapl_gpu_tot)
 
     axs[0].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
@@ -142,6 +174,16 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
+    x = data_gpu_chain["var_num"]
+    y = data_gpu_chain["vi_time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_mapl_gpu_vi, marker=".", label=label_mapl_gpu_vi)
+
+    x = data_gpu_chain["var_num"]
+    y = data_gpu_chain["tot_time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_mapl_gpu_tot, marker=".", label=label_mapl_gpu_tot)
+
     axs[1].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
 
@@ -150,8 +192,9 @@ def create_plot(out_filename=None):
     # axs[1].set_ylabel("time (s)")
     axs[1].set_xlabel("number of variables")
     axs[1].grid(axis="y")
-    # axs[1].tick_params(axis='x', colors='white')
+    axs[1].tick_params(left=False)
     # axs[1].legend()
+    axs[1].minorticks_off()
 
     #
     # finish
@@ -159,6 +202,7 @@ def create_plot(out_filename=None):
     handles, labels = axs[1].get_legend_handles_labels()
     fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=3, frameon=False, fancybox=False, shadow=False)
     fig.tight_layout()
+    plt.subplots_adjust(wspace=0.03)
     if out_filename is None:
         plt.show()
     else:
