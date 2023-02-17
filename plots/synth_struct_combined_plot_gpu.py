@@ -85,12 +85,10 @@ def _get_synth_cross_stitch_data():
 
 
 def create_plot(out_filename=None):
-    color_spudd = "tab:red"
     color_mapl_vi = "tab:blue"
     color_mapl_kcvi = "tab:green"
     color_mapl_gpu_vi = "tab:purple"
     color_mapl_gpu_tot = "tab:pink"
-    label_spudd = "SPUDD"
     label_mapl_vi = "\\texttt{mapl-cirup} (VI)"
     label_mapl_kcvi = "\\texttt{mapl-cirup} (KC+VI)"
     label_mapl_gpu_vi = "\\texttt{mapl-cirup} (GPU, VI)"
@@ -116,12 +114,6 @@ def create_plot(out_filename=None):
     #
     # cross-stitch
     #
-    data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd"]
-    x = data_spudd["var_num"]
-    y = data_spudd["time"]
-    assert len(x) > 0
-    axs[0].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
-
     data_mapl_vi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (vi)"]
     x = data_mapl_vi["var_num"]
     y = data_mapl_vi["time"]
@@ -156,12 +148,6 @@ def create_plot(out_filename=None):
     #
     # chain
     #
-    data_spudd = data_chain[data_chain["solver"] == "spudd"]
-    x = data_spudd["var_num"]
-    y = data_spudd["time"]
-    assert len(x) > 0
-    axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
-
     data_mapl_vi = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
     x = data_mapl_vi["var_num"]
     y = data_mapl_vi["time"]
@@ -200,7 +186,7 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=3, frameon=False, fancybox=False, shadow=False)
+    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=2, frameon=False, fancybox=False, shadow=False)
     fig.tight_layout()
     plt.subplots_adjust(wspace=0.03)
     if out_filename is None:
@@ -210,6 +196,6 @@ def create_plot(out_filename=None):
 
 
 if __name__ == "__main__":
-    create_plot("./synth_struct_combined_plot.pdf")
+    create_plot("./synth_struct_combined_plot_gpu.pdf")
 
 
