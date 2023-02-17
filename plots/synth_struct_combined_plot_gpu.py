@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import math
 
-TIMEOUT = 600
+TIMEOUT = 800
 CHAIN_FAMILY = 'synth_struct_chain'
 CROSS_STITCH_FAMILY = 'synth_struct_cross_stitch'
 
@@ -13,7 +13,8 @@ def _get_synth_gpu_data(family):
     df_gpu = df_gpu.loc[df_gpu['family'] == family]
 
     df_gpu = df_gpu[df_gpu['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
-    df_gpu = df_gpu[df_gpu['var_num'] <= 8]  # skip >= 8 because all timeouts
+    if family == CHAIN_FAMILY:
+        df_gpu = df_gpu[df_gpu['var_num'] <= 8]  # skip >= 8 because all timeouts
 
     df_gpu.loc[df_gpu['vi_time'] == 'na', 'tot_time'] = 'na'
 
@@ -89,10 +90,10 @@ def create_plot(out_filename=None):
     color_mapl_kcvi = "tab:green"
     color_mapl_gpu_vi = "tab:purple"
     color_mapl_gpu_tot = "tab:pink"
-    label_mapl_vi = "\\texttt{mapl-cirup} (VI)"
-    label_mapl_kcvi = "\\texttt{mapl-cirup} (KC+VI)"
-    label_mapl_gpu_vi = "\\texttt{mapl-cirup} (GPU, VI)"
-    label_mapl_gpu_tot = "\\texttt{mapl-cirup} (GPU, tot)"
+    label_mapl_vi = "VI"
+    label_mapl_kcvi = "KC+VI"
+    label_mapl_gpu_vi = "GPU, VI"
+    label_mapl_gpu_tot = "GPU, tot"
 
     #
     # get data
@@ -126,8 +127,8 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[0].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
-    x = data_gpu_cross_stitch["var_num"]
-    y = data_gpu_cross_stitch["vi_time"]
+    x = data_gpu_cross_stitch.loc[data_gpu_cross_stitch['var_num'] <= 7, 'var_num']
+    y = data_gpu_cross_stitch.loc[data_gpu_cross_stitch['var_num'] <= 7, 'vi_time']
     assert len(x) > 0
     axs[0].plot(x, y, color=color_mapl_gpu_vi, marker=".", label=label_mapl_gpu_vi)
 
@@ -160,8 +161,8 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
-    x = data_gpu_chain["var_num"]
-    y = data_gpu_chain["vi_time"]
+    x = data_gpu_chain.loc[data_gpu_chain['var_num'] <= 6, 'var_num']
+    y = data_gpu_chain.loc[data_gpu_chain['var_num'] <= 6, 'vi_time']
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_gpu_vi, marker=".", label=label_mapl_gpu_vi)
 
@@ -186,7 +187,7 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=2, frameon=False, fancybox=False, shadow=False)
+    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=4, frameon=False, fancybox=False, shadow=False)
     fig.tight_layout()
     plt.subplots_adjust(wspace=0.03)
     if out_filename is None:
