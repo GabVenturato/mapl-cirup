@@ -215,9 +215,9 @@ class DDC:
                         self._type.pop(prime_node)
                     node_id = None
                     if not self._compact_and_nodes and self._reuse_and_nodes:
-                        # It makes more sense to do this only if we don't compact and nodes
-                        # otherwise it's harder to reuse and nodes
-                        # TODO: Test what's written above here
+                        # It makes more sense to do this only if we don't compact and nodes otherwise we have to be
+                        # careful to not compact AND nodes that are shared (i.e. with more than one parent)
+                        # TODO : Check if make sense to compact consecutive AND nodes where the child doesn't have any other parents
                         for nid, children in self._children.items():
                             if children == sub_children + prime_children:
                                 node_id = nid
