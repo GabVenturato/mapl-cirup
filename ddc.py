@@ -35,6 +35,7 @@ class DDC:
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, np.array] = dict()
+        self._compact_and_nodes = False
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -201,12 +202,12 @@ class DDC:
                     # Create AND node
                     # If an AND node has an AND child, I can compact it
                     sub_children = [sub_node]
-                    if self._type[sub_node] == NodeType.AND:
+                    if self._compact_and_nodes and self._type[sub_node] == NodeType.AND:
                         sub_children = self._children[sub_node]
                         self._children.pop(sub_node)
                         self._type.pop(sub_node)
                     prime_children = [prime_node]
-                    if self._type[prime_node] == NodeType.AND:
+                    if self._compact_and_nodes and self._type[prime_node] == NodeType.AND:
                         prime_children = self._children[prime_node]
                         self._children.pop(prime_node)
                         self._type.pop(prime_node)
@@ -466,6 +467,15 @@ class DDC:
         print("Number of OR nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.OR]))
         print("Number of sum/max required: %s" %
               sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]))
+
+        or_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]
+        and_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]
+        print("Max OR nodes degree: %s" % max(or_nodes_degree))
+        mean = sum(or_nodes_degree) / len(or_nodes_degree)
+        print("Average OR nodes degree: %s (+-%s)" % (mean, np.std(or_nodes_degree)))
+        print("Max AND nodes degree: %s" % max(and_nodes_degree))
+        mean = sum(and_nodes_degree) / len(and_nodes_degree)
+        print("Average AND nodes degree: %s (+-%s)" % (mean,  np.std(and_nodes_degree)))
 
 
 class NodeType(Enum):
