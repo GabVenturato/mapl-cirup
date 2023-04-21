@@ -38,6 +38,7 @@ class DDC:
         self._states: Dict[int, np.array] = dict()
         self._compact_and_nodes = False
         self._reuse_and_nodes = True
+        self._ands: Dict[(int, int), int] = dict()
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -218,11 +219,16 @@ class DDC:
                         # It makes more sense to do this only if we don't compact and nodes otherwise we have to be
                         # careful to not compact AND nodes that are shared (i.e. with more than one parent)
                         # TODO : Check if make sense to compact consecutive AND nodes where the child doesn't have any other parents
-                        for nid, children in self._children.items():
-                            if children == sub_children + prime_children:
-                                node_id = nid
-                                self._reuse_and_nodes_counter += 1
-                                break
+                        try:
+                            node_id = self._ands[(prime_node, sub_node)]
+                            self._reuse_and_nodes_counter += 1
+                        except KeyError:
+                            self._ands[(prime_node, sub_node)] = self._id
+                        # for nid, children in self._children.items():
+                        #     if children == sub_children + prime_children:
+                        #         node_id = nid
+                        #         self._reuse_and_nodes_counter += 1
+                        #         break
                     if node_id is None:
                         node_id = self._id
                         self._id += 1
