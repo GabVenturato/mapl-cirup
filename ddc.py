@@ -35,7 +35,7 @@ class DDC:
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, np.array] = dict()
-        self._compact_and_nodes = False
+        self._compact_and_nodes = True
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
