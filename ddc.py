@@ -461,6 +461,8 @@ class DDC:
         return impossible_utilities
 
     def print_info(self):
+        print("Number of literals: %s" % len([x for x in self._children if self._type[x] == NodeType.LITERAL]))
+        print("Number of leaves: %s" % len([x for x in self._children if len(self._children[x]) == 0]))
         print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
         print("Number of multiplications required: %s" %
               sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]))
