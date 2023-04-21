@@ -25,6 +25,7 @@ class DDC:
     _decisions: Set[int] = set()
     _semiring = None
     _id = 1
+    _reuse_and_nodes_counter = 0
 
     def __init__(self):
         self._root: int = self._false
@@ -35,7 +36,8 @@ class DDC:
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, np.array] = dict()
-        self._compact_and_nodes = True
+        self._compact_and_nodes = False
+        self._reuse_and_nodes = True
 
     @classmethod
     def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
@@ -211,10 +213,21 @@ class DDC:
                         prime_children = self._children[prime_node]
                         self._children.pop(prime_node)
                         self._type.pop(prime_node)
-                    node_id = self._id
-                    self._id += 1
-                    self._children[node_id] = sub_children + prime_children
-                    self._type[node_id] = NodeType.AND
+                    node_id = None
+                    if not self._compact_and_nodes and self._reuse_and_nodes:
+                        # It makes more sense to do this only if we don't compact and nodes
+                        # otherwise it's harder to reuse and nodes
+                        # TODO: Test what's written above here
+                        for nid, children in self._children.items():
+                            if children == sub_children + prime_children:
+                                node_id = nid
+                                self._reuse_and_nodes_counter += 1
+                                break
+                    if node_id is None:
+                        node_id = self._id
+                        self._id += 1
+                        self._children[node_id] = sub_children + prime_children
+                        self._type[node_id] = NodeType.AND
                     or_children.append(node_id)
             # Create OR node
             if len(or_children) == 0:
@@ -461,6 +474,7 @@ class DDC:
         return impossible_utilities
 
     def print_info(self):
+        print("Number of re-used AND nodes: %s" % self._reuse_and_nodes_counter)
         print("Number of literals: %s" % len([x for x in self._children if self._type[x] == NodeType.LITERAL]))
         print("Number of leaves: %s" % len([x for x in self._children if len(self._children[x]) == 0]))
         print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
