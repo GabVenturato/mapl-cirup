@@ -392,17 +392,32 @@ class DDC:
     def max_eu(self, numba_structures, cache) -> np.array:
         children = numba_structures["children"]
         node_type = numba_structures["node_type"]
+        one_p = numba_structures["one_p"]
+        one_eu = numba_structures["one_eu"]
+        one_max = numba_structures["one_max"]
         states = numba_structures["states"]
         label_p = numba_structures["label_p"]
         label_eu = numba_structures["label_eu"]
         label_max = numba_structures["label_max"]
 
-        cp = cache["cache_p"]
-        ceu = cache["cache_eu"]
-        cm = cache["cache_max"]
+        cache_p = cache["cache_p"]
+        cache_eu = cache["cache_eu"]
+        cache_max = cache["cache_max"]
 
         return _max_eu(
-            children, node_type, states, label_p, label_eu, label_max, cp, ceu, cm
+            self._root,
+            children,
+            node_type,
+            one_p,
+            one_eu,
+            one_max,
+            states,
+            label_p,
+            label_eu,
+            label_max,
+            cache_p,
+            cache_eu,
+            cache_max,
         )
 
     def best_dec(self, state: Dict[str, bool] = None) -> Label:
@@ -572,41 +587,84 @@ class NodeType(Enum):
     OR = 4
 
 
-@numba.njit
-def _max_eu(children, node_type, states, label_p, label_eu, label_max, cp, ceu, cm):
+@numba.njit(fastmath=True, parallel=False)
+def _max_eu(
+    root,
+    children,
+    node_type,
+    one_p,
+    one_eu,
+    one_max,
+    states,
+    label_p,
+    label_eu,
+    label_max,
+    cache_p,
+    cache_eu,
+    cache_max,
+):
     for node in children.keys():
         if node_type[node] == 1:
-            i = 0
-        #     cache[node] = semiring.one()
+            cache_p[node] = one_p
+            cache_eu[node] = one_eu
+            cache_max[node] = one_max
         elif node_type[node] == 2:
-            i = 0
+            p = label_p[node]
+            eu = label_eu[node]
+            m = label_max[node]
+            if node in states:
+                cache_p[node] = states[node]
+                cache_eu[node] = eu * states[node]
+                cache_max[node] = m
+            else:
+                cache_p[node] = p
+                cache_eu[node] = eu
+                cache_max[node] = m
+        else:
+            node_children = children[node]
+            total_p = cache_p[node_children[0]]
+            total_eu = cache_eu[node_children[0]]
+            total_max = cache_max[node_children[0]]
+            if node_type[node] == 3:
+                for i in range(1, len(node_children)):
+                    node_c = node_children[i]
+                    c_p = cache_p[node_c]
+                    c_eu = cache_eu[node_c]
+                    c_max = cache_max[node_c]
 
-        #     if node in self._states:
-        #         (p, eu, m) = self._label[node]
-        #         cache[node] = semiring.value(
-        #             Label(self._states[node], eu * self._states[node], m)
-        #         )
-        #     else:
-        #         cache[node] = self._label[node]
-        elif node_type[node] == 3:
-            i = 0
+                    total_eu = total_p * c_eu + c_p * total_eu
+                    total_p = total_p * c_p
+                    total_max = total_max or c_max
+            elif node_type[node] == 4:
+                for i in range(1, len(node_children)):
+                    node_c = node_children[i]
+                    c_p = cache_p[node_c]
+                    c_eu = cache_eu[node_c]
+                    c_max = cache_max[node_c]
 
-        #     total = cache[children[0]]
-        #     for child in children[1:]:
-        #         total = semiring.times(total, cache[child])
-        #     cache[node] = total
-        elif node_type[node] == 4:
-            i = 0
+                    if total_max or c_max:
+                        take_total = (c_p == 0) | (
+                            (total_p != 0) & (total_eu / total_p > c_eu / c_p)
+                        )
+                        total_p = (total_p * take_total) + (
+                            c_p * np.logical_not(take_total)
+                        )
+                        total_eu = (total_eu * take_total) + (
+                            c_eu * np.logical_not(take_total)
+                        )
+                        total_max = True
+                    else:
+                        total_p = total_p + c_p
+                        total_eu = total_eu + c_eu
+                        total_max = False
 
-        #     total = cache[children[0]]
-        #     for child in children[1:]:
-        #         total = semiring.plus(total, cache[child])
-        #     cache[node] = total
+            cache_p[node] = total_p
+            cache_eu[node] = total_eu
+            cache_max[node] = total_max
 
-    root_p = cp[-1, :]
-    root_eu = ceu[-1, :]
+    root_p = cache_p[root]
+    root_eu = cache_eu[root]
 
-    # eu = root_eu / root_p
-    eu = root_eu
+    eu = root_eu / root_p
 
     return eu

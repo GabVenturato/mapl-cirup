@@ -285,6 +285,8 @@ class MaplCirup:
     def value_iteration(
         self, discount: float = None, error: float = None, horizon: int = None
     ) -> None:
+        starttime_jit = time.time()
+
         numba_structures = self.to_numba(self._ddc)
 
         n_states = 2 ** len(self._ddc._state_vars)
@@ -292,6 +294,9 @@ class MaplCirup:
         cache["cache_p"] = np.zeros((self.size() + 1, n_states))
         cache["cache_eu"] = np.zeros((self.size() + 1, n_states))
         cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
+
+        old_utility = np.zeros(n_states)
+        self._ddc.max_eu(numba_structures, cache)
 
         if discount is not None:
             self._discount = discount
@@ -302,7 +307,11 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        old_utility = np.zeros(n_states)
+        cache["cache_p"] = np.zeros((self.size() + 1, n_states))
+        cache["cache_eu"] = np.zeros((self.size() + 1, n_states))
+        cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
+
+        endtime_jit = time.time()
 
         starttime_vi = time.time()
 
@@ -311,10 +320,22 @@ class MaplCirup:
                 if self._iterations_count >= self._horizon:
                     break
 
+            # print(self._iterations_count)
+
+            # print(old_utility)
             new_utility = self._ddc.max_eu(numba_structures, cache)
+            # print(new_utility)
 
             u_idx = 0
             # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+            # TODO fix this loop
+
             for u in new_utility:
                 self._ddc.set_utility_label("u" + str(u_idx), self._discount * u)
                 u_idx += 1
@@ -336,6 +357,7 @@ class MaplCirup:
                         break
 
         endtime_vi = time.time()
+        self._jit_time = endtime_jit - starttime_jit
         self._vi_time = endtime_vi - starttime_vi
 
     def to_numba(self, ddc):
@@ -346,9 +368,16 @@ class MaplCirup:
             ddc._label, len(ddc._state_vars)
         )
 
+        one_p = np.ones(2 ** len(ddc._states))
+        one_eu = np.zeros(2 ** len(ddc._states))
+        one_max = False
+
         numba_structures = {
             "children": children,
             "node_type": node_type,
+            "one_p": one_p,
+            "one_eu": one_eu,
+            "one_max": one_max,
             "states": states,
             "label_p": label_p,
             "label_eu": label_eu,
@@ -454,11 +483,15 @@ class MaplCirup:
     def value_iteration_time(self) -> float:
         return self._vi_time
 
+    def jit_time(self) -> float:
+        return self._jit_time
+
     def tot_time(self) -> float:
         return (
             self._compile_time
             + self._minimize_time
             + (self._vi_time if self._vi_time is not None else 0)
+            + self._jit_time
         )
 
     def view_dot(self) -> None:
