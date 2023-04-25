@@ -6,6 +6,9 @@ from typing import List, Dict, Set
 from enum import Enum
 from collections import namedtuple
 import graphviz
+import typing
+
+import numba
 
 from semiring import BestDecSemiring, Label, MEUSemiring
 
@@ -13,13 +16,14 @@ from problog.logic import Term, Constant, Not
 from problog.sdd_formula_explicit import SDDExplicit
 from pysdd.sdd import SddNode
 
-VarIndex = namedtuple('VarIndex', 'pos, neg')
+VarIndex = namedtuple("VarIndex", "pos, neg")
 
 
 class DDC:
     """
     Class for dynamic decision circuits (DDCs).
     """
+
     _false = -1
     _true = -1
     _decisions: Set[int] = set()
@@ -41,7 +45,9 @@ class DDC:
         self._ands: Dict[(int, int), int] = dict()
 
     @classmethod
-    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
+    def create_from(
+        cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]
+    ):
         root: SddNode = sdd.get_root_inode()
 
         ddc = cls()
@@ -50,8 +56,10 @@ class DDC:
         # Retrieve variable names
         literal_id2name: Dict[int, List[str]] = dict()
         var_count = sdd.get_manager().varcount
-        for (name, key) in sdd.get_names():
-            assert key >= 0 or abs(key) in sdd.atom2var, "Named variable with negative key not existing as positive"
+        for name, key in sdd.get_names():
+            assert (
+                key >= 0 or abs(key) in sdd.atom2var
+            ), "Named variable with negative key not existing as positive"
             inode_index = sdd.atom2var.get(key, -1)
             if 0 <= inode_index <= var_count:
                 if inode_index in literal_id2name:
@@ -79,18 +87,30 @@ class DDC:
             assert index != -1, "Weighted variable missing"
             if isinstance(weights[key], bool) and weights[key] is True:
                 if key > 0:
-                    ddc._set_positive_label(literal_id2name[index][0], Label(1.0, 0.0, set()))
+                    ddc._set_positive_label(
+                        literal_id2name[index][0], Label(1.0, 0.0, set())
+                    )
                 else:
-                    ddc._set_negative_label(literal_id2name[index][0], Label(1.0, 0.0, set()))
-            elif isinstance(weights[key], Constant):  # probability (utilities at the beginning are all zero)
+                    ddc._set_negative_label(
+                        literal_id2name[index][0], Label(1.0, 0.0, set())
+                    )
+            elif isinstance(
+                weights[key], Constant
+            ):  # probability (utilities at the beginning are all zero)
                 prob: float = weights[key].compute_value()
-                ddc._set_pn_labels(literal_id2name[index][0], key > 0, Label(prob, 0.0, set()))
+                ddc._set_pn_labels(
+                    literal_id2name[index][0], key > 0, Label(prob, 0.0, set())
+                )
             elif weights[key] == Term("?"):  # decision
                 node_id = ddc._var2node[literal_id2name[index][0]]
                 ddc._decisions.add(node_id.pos)
                 ddc._decisions.add(node_id.neg)
-                ddc._set_positive_label(literal_id2name[index][0], Label(1.0, 0.0, {node_id.pos}))
-                ddc._set_negative_label(literal_id2name[index][0], Label(1.0, 0.0, {node_id.neg}))
+                ddc._set_positive_label(
+                    literal_id2name[index][0], Label(1.0, 0.0, {node_id.pos})
+                )
+                ddc._set_negative_label(
+                    literal_id2name[index][0], Label(1.0, 0.0, {node_id.neg})
+                )
 
         # for all the other literals
         for node_id, node_type in ddc._type.items():
@@ -112,14 +132,18 @@ class DDC:
 
         # Add named variables with negative key that where not considered above
         # note that each variable with a negative key at this point is already added in its positive key version
-        for (name, key) in sdd.queries():
+        for name, key in sdd.queries():
             if key < 0:
                 var_name = str(name)
-                assert var_name not in ddc._var2node, "Variable with negative key already in the DDC"
+                assert (
+                    var_name not in ddc._var2node
+                ), "Variable with negative key already in the DDC"
                 inode_index = sdd.atom2var.get(abs(key), -1)
                 assert inode_index != -1, "Negative query variable missing"
                 ddc_index = ddc._var2node[literal_id2name[inode_index][0]]
-                assert ddc_index.pos != ddc._false, "Query val with positive index set to false"
+                assert (
+                    ddc_index.pos != ddc._false
+                ), "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
         # Create vectorised evidence for state variables
@@ -128,15 +152,23 @@ class DDC:
         for var in ddc._state_vars:
             var_num -= 1
             index = ddc._var2node[var]
-            ddc._states[index.pos] = np.tile(np.repeat(np.array([1, 0]), 2 ** rep), 2 ** var_num)
-            ddc._states[index.neg] = np.tile(np.repeat(np.array([0, 1]), 2 ** rep), 2 ** var_num)
+            ddc._states[index.pos] = np.tile(
+                np.repeat(np.array([1, 0]), 2**rep), 2**var_num
+            )
+            ddc._states[index.neg] = np.tile(
+                np.repeat(np.array([0, 1]), 2**rep), 2**var_num
+            )
             rep += 1
 
         return ddc
 
-    def _compact_sdd(self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]) -> int:
+    def _compact_sdd(
+        self, node: SddNode, lit_name_map: Dict[int, List[str]], visited: Dict[int, int]
+    ) -> int:
         if node.id in visited:
-            assert visited[node.id] in self._children, "Compacting SDD removed wrong nodes"
+            assert (
+                visited[node.id] in self._children
+            ), "Compacting SDD removed wrong nodes"
             return visited[node.id]
         if node.is_literal():
             # A probabilistic rule '0.5::a :- b.' is split into:
@@ -196,12 +228,14 @@ class DDC:
             return self._false
         elif node.is_decision():
             or_children = []
-            for (prime, sub) in node.elements():
+            for prime, sub in node.elements():
                 # TODO AND nodes are apparently not cached..?
                 sub_node = self._compact_sdd(sub, lit_name_map, visited)
                 if sub_node != self._false:
                     prime_node = self._compact_sdd(prime, lit_name_map, visited)
-                    assert prime_node != self._false, "Vincent was wrong: prime can be false."
+                    assert (
+                        prime_node != self._false
+                    ), "Vincent was wrong: prime can be false."
                     # Create AND node
                     # If an AND node has an AND child, I can compact it
                     sub_children = [sub_node]
@@ -210,7 +244,10 @@ class DDC:
                         self._children.pop(sub_node)
                         self._type.pop(sub_node)
                     prime_children = [prime_node]
-                    if self._compact_and_nodes and self._type[prime_node] == NodeType.AND:
+                    if (
+                        self._compact_and_nodes
+                        and self._type[prime_node] == NodeType.AND
+                    ):
                         prime_children = self._children[prime_node]
                         self._children.pop(prime_node)
                         self._type.pop(prime_node)
@@ -249,7 +286,7 @@ class DDC:
                 return node_id
 
         else:
-            raise TypeError('Unknown type for node %s' % node)
+            raise TypeError("Unknown type for node %s" % node)
 
     def view_dot(self) -> None:
         """
@@ -261,14 +298,11 @@ class DDC:
         b.view()
 
     def to_dot(self) -> str:
-        dot = [
-            "digraph sdd {",
-            "overlap=false;"
-        ]
+        dot = ["digraph sdd {", "overlap=false;"]
         for node, children in self._children.items():
             dot_node = ""
             if self._type[node] == NodeType.TRUE:
-                dot_node = f"{node} [shape=rectangle,label=\"True\"];"
+                dot_node = f'{node} [shape=rectangle,label="True"];'
             elif self._type[node] == NodeType.LITERAL:
                 var_name = ", ".join(self._node_to_var(node))
                 dec = self._label[node].dec
@@ -277,10 +311,10 @@ class DDC:
                     decs = [x for d in dec for x in self._node_to_var(d)]
                     dec_label = "{" + ", ".join(decs) + "}"
                 label = f"({round(self._label[node].prob, 2)}, {self._label[node].eu}, {dec_label})"
-                dot_node = f"{node} [shape=rectangle,label=\"{var_name} : {label}\"];"
+                dot_node = f'{node} [shape=rectangle,label="{var_name} : {label}"];'
             elif self._type[node] == NodeType.AND or self._type[node] == NodeType.OR:
-                var_name = '+' if self._type[node] == NodeType.OR else '×'
-                dot_node = f"{node} [label=\"{var_name}\",shape=circle,style=filled,fillcolor=gray95];\n"
+                var_name = "+" if self._type[node] == NodeType.OR else "×"
+                dot_node = f'{node} [label="{var_name}",shape=circle,style=filled,fillcolor=gray95];\n'
                 dot_children = []
                 for child in children:
                     dot_children.append(f"{node} -> {child} [arrowhead=none];")
@@ -314,12 +348,16 @@ class DDC:
             self._set_positive_label(var, label)
             if self._var2node[var].neg not in self._label:
                 # If the complement is not in the labelling function already, insert it
-                self._set_negative_label(var, Label(1-label.prob, label.eu, label.dec))
+                self._set_negative_label(
+                    var, Label(1 - label.prob, label.eu, label.dec)
+                )
         else:
             self._set_negative_label(var, label)
             if self._var2node[var].pos not in self._label:
                 # If the complement is not in the labelling function already, insert it
-                self._set_positive_label(var, Label(1-label.prob, label.eu, label.dec))
+                self._set_positive_label(
+                    var, Label(1 - label.prob, label.eu, label.dec)
+                )
 
     def _init_reward_label(self, var: str, positive: bool, val: float):
         index = self._var2node[var].pos if positive else self._var2node[var].neg
@@ -344,48 +382,35 @@ class DDC:
     def size(self) -> int:
         return len(self._children)
 
-    def _evidence_to_label(self, var: str, value: bool) -> (int, Label):
+    def _evidence_to_label(self, var: str, value: bool) -> typing.Tuple[int, Label]:
         # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
         node_index = self._var2node[var]
         node_id = node_index.neg if value else node_index.pos
         label = self._label[node_id]
         return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
 
-    def max_eu(self) -> np.array:
-        semiring = MEUSemiring()
+    def max_eu(self, numba_structures, cache) -> np.array:
+        children = numba_structures["children"]
+        node_type = numba_structures["node_type"]
+        states = numba_structures["states"]
+        label_p = numba_structures["label_p"]
+        label_eu = numba_structures["label_eu"]
+        label_max = numba_structures["label_max"]
 
-        cache = dict()
-        for node, children in self._children.items():
-            if self._type[node] == NodeType.TRUE:
-                cache[node] = semiring.one()
-            elif self._type[node] == NodeType.LITERAL:
-                if node in self._states:
-                    (p, eu, m) = self._label[node]
-                    cache[node] = semiring.value(Label(self._states[node], eu * self._states[node], m))
-                else:
-                    cache[node] = self._label[node]
-            elif self._type[node] == NodeType.OR:
-                assert len(self._children[node]) > 0, "There is an OR node with no children"
-                total = cache[children[0]]
-                for child in children[1:]:
-                    total = semiring.plus(total, cache[child])
-                cache[node] = total
-            elif self._type[node] == NodeType.AND:
-                assert len(self._children[node]) > 0, "There is an AND node with no children"
-                total = cache[children[0]]
-                for child in children[1:]:
-                    total = semiring.times(total, cache[child])
-                cache[node] = total
+        cp = cache["cache_p"]
+        ceu = cache["cache_eu"]
+        cm = cache["cache_max"]
 
-        ddc_eval = cache[self._root]
-        _, eu, _ = semiring.normalise(ddc_eval, ddc_eval)
-
-        return eu
+        return _max_eu(
+            children, node_type, states, label_p, label_eu, label_max, cp, ceu, cm
+        )
 
     def best_dec(self, state: Dict[str, bool] = None) -> Label:
         return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
 
-    def _evaluate_root_iter(self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None) -> Label:
+    def _evaluate_root_iter(
+        self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None
+    ) -> Label:
         self._semiring = semiring
 
         evidence_label: Dict[int, Label] = dict()
@@ -404,13 +429,17 @@ class DDC:
                 else:
                     self._cache[node] = self._label[node]
             elif self._type[node] == NodeType.OR:
-                assert len(self._children[node]) > 0, "There is an OR node with no children"
+                assert (
+                    len(self._children[node]) > 0
+                ), "There is an OR node with no children"
                 total = self._cache[children[0]]
                 for child in children[1:]:
                     total = self._semiring.plus(total, self._cache[child])
                 self._cache[node] = total
             elif self._type[node] == NodeType.AND:
-                assert len(self._children[node]) > 0, "There is an AND node with no children"
+                assert (
+                    len(self._children[node]) > 0
+                ), "There is an AND node with no children"
                 total = self._cache[children[0]]
                 for child in children[1:]:
                     total = self._semiring.times(total, self._cache[child])
@@ -481,23 +510,59 @@ class DDC:
 
     def print_info(self):
         print("Number of re-used AND nodes: %s" % self._reuse_and_nodes_counter)
-        print("Number of literals: %s" % len([x for x in self._children if self._type[x] == NodeType.LITERAL]))
-        print("Number of leaves: %s" % len([x for x in self._children if len(self._children[x]) == 0]))
-        print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
-        print("Number of multiplications required: %s" %
-              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]))
-        print("Number of OR nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.OR]))
-        print("Number of sum/max required: %s" %
-              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]))
+        print(
+            "Number of literals: %s"
+            % len([x for x in self._children if self._type[x] == NodeType.LITERAL])
+        )
+        print(
+            "Number of leaves: %s"
+            % len([x for x in self._children if len(self._children[x]) == 0])
+        )
+        print(
+            "Number of AND nodes: %s"
+            % len([x for x in self._children if self._type[x] == NodeType.AND])
+        )
+        print(
+            "Number of multiplications required: %s"
+            % sum(
+                [
+                    len(self._children[x])
+                    for x in self._children
+                    if self._type[x] == NodeType.AND
+                ]
+            )
+        )
+        print(
+            "Number of OR nodes: %s"
+            % len([x for x in self._children if self._type[x] == NodeType.OR])
+        )
+        print(
+            "Number of sum/max required: %s"
+            % sum(
+                [
+                    len(self._children[x])
+                    for x in self._children
+                    if self._type[x] == NodeType.OR
+                ]
+            )
+        )
 
-        or_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]
-        and_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]
+        or_nodes_degree = [
+            len(self._children[x])
+            for x in self._children
+            if self._type[x] == NodeType.OR
+        ]
+        and_nodes_degree = [
+            len(self._children[x])
+            for x in self._children
+            if self._type[x] == NodeType.AND
+        ]
         print("Max OR nodes degree: %s" % max(or_nodes_degree))
         mean = sum(or_nodes_degree) / len(or_nodes_degree)
         print("Average OR nodes degree: %s (+-%s)" % (mean, np.std(or_nodes_degree)))
         print("Max AND nodes degree: %s" % max(and_nodes_degree))
         mean = sum(and_nodes_degree) / len(and_nodes_degree)
-        print("Average AND nodes degree: %s (+-%s)" % (mean,  np.std(and_nodes_degree)))
+        print("Average AND nodes degree: %s (+-%s)" % (mean, np.std(and_nodes_degree)))
 
 
 class NodeType(Enum):
@@ -505,3 +570,43 @@ class NodeType(Enum):
     LITERAL = 2
     AND = 3
     OR = 4
+
+
+@numba.njit
+def _max_eu(children, node_type, states, label_p, label_eu, label_max, cp, ceu, cm):
+    for node in children.keys():
+        if node_type[node] == 1:
+            i = 0
+        #     cache[node] = semiring.one()
+        elif node_type[node] == 2:
+            i = 0
+
+        #     if node in self._states:
+        #         (p, eu, m) = self._label[node]
+        #         cache[node] = semiring.value(
+        #             Label(self._states[node], eu * self._states[node], m)
+        #         )
+        #     else:
+        #         cache[node] = self._label[node]
+        elif node_type[node] == 3:
+            i = 0
+
+        #     total = cache[children[0]]
+        #     for child in children[1:]:
+        #         total = semiring.times(total, cache[child])
+        #     cache[node] = total
+        elif node_type[node] == 4:
+            i = 0
+
+        #     total = cache[children[0]]
+        #     for child in children[1:]:
+        #         total = semiring.plus(total, cache[child])
+        #     cache[node] = total
+
+    root_p = cp[-1, :]
+    root_eu = ceu[-1, :]
+
+    # eu = root_eu / root_p
+    eu = root_eu
+
+    return eu

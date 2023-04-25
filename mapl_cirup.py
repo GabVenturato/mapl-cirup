@@ -5,6 +5,8 @@ import copy
 import time
 import numpy as np
 
+from numba.typed import Dict as NumbaDict
+
 from typing import Dict, List
 
 from problog import get_evaluatable
@@ -15,7 +17,7 @@ from problog.program import PrologFile
 from problog.engine import DefaultEngine
 from problog.sdd_formula_explicit import SDDExplicit, x_constrained_named
 
-from ddc import DDC
+from ddc import DDC, NodeType
 
 
 class MaplCirup:
@@ -25,18 +27,21 @@ class MaplCirup:
     The circuit is symbolically representing both the utility function U(s) and the policy π(s), for each explicit
     state s.
     """
-    _engine = DefaultEngine(label_all=True, keep_order=True)    # Grounding engine
-    _next_state_functor = 'x'                                   # Name of the functor used to indicate the next state
-    _true_term = Term('true')                                   # True term used for querying
-    _decision_term = Term("?")                                  # Decision term used for querying
-    _horizon = 0                                                # Default future lookahead
-    _discount = 1                                               # Default discount factor
-    _error = 0.01                                               # Default maximum error allowed for value iteration
-    _utilities: Dict[Term, List[Term]] = {}                     # Added (expected) utility parameters with their state
-    _iterations_count: int = 0                                  # Number of iterations for policy convergence
-    _vi_time = None                                             # Time required for value iteration
-    _minimisation_on = False                                    # Activate the SDD minimisation
-    _minimize_time = 0                                          # Default minimisation time
+
+    _engine = DefaultEngine(label_all=True, keep_order=True)  # Grounding engine
+    _next_state_functor = "x"  # Name of the functor used to indicate the next state
+    _true_term = Term("true")  # True term used for querying
+    _decision_term = Term("?")  # Decision term used for querying
+    _horizon = 0  # Default future lookahead
+    _discount = 1  # Default discount factor
+    _error = 0.01  # Default maximum error allowed for value iteration
+    _utilities: Dict[
+        Term, List[Term]
+    ] = {}  # Added (expected) utility parameters with their state
+    _iterations_count: int = 0  # Number of iterations for policy convergence
+    _vi_time = None  # Time required for value iteration
+    _minimisation_on = False  # Activate the SDD minimisation
+    _minimize_time = 0  # Default minimisation time
 
     def __init__(self, filename, minimisation=False):
         """
@@ -83,7 +88,9 @@ class MaplCirup:
 
     def _remove_impossible_states(self):
         imp_util = self._ddc.impossible_utilities()
-        print("\nImpossible states (%s/%s):" % (len(imp_util), 2 ** len(self._state_vars)))
+        print(
+            "\nImpossible states (%s/%s):" % (len(imp_util), 2 ** len(self._state_vars))
+        )
         to_remove = []
         for u, state in self._utilities.items():
             if str(u) in imp_util:
@@ -108,7 +115,7 @@ class MaplCirup:
         :param program: Parsed program.
         :return: A dictionary {reward: val}.
         """
-        return dict(self._engine.query(program, Term('utility', None, None)))
+        return dict(self._engine.query(program, Term("utility", None, None)))
 
     def _get_decisions(self, program: ClauseDB) -> List[Term]:
         """
@@ -123,9 +130,9 @@ class MaplCirup:
             if not node:
                 continue
             node_type = type(node).__name__
-            if hasattr(node, 'probability'):
+            if hasattr(node, "probability"):
                 if node.probability == self._decision_term:
-                    if node_type == 'choice':  # unpack from the choice node
+                    if node_type == "choice":  # unpack from the choice node
                         decisions.add(node.functor.args[2])
                     else:
                         decisions.add(Term(node.functor, *node.args))
@@ -141,7 +148,7 @@ class MaplCirup:
         :return: A set of terms, each is a state variable.
         """
         for rule in program:
-            if type(rule) == Term and rule.functor == 'state_variables':
+            if type(rule) == Term and rule.functor == "state_variables":
                 return list(rule.args)
 
         return []
@@ -165,9 +172,14 @@ class MaplCirup:
         state = self._state_vars
 
         while state:
-            utility_term = Term('u' + str(utility_idx))
+            utility_term = Term("u" + str(utility_idx))
             self._utilities[utility_term] = state
-            parsed_prog.add_clause(Clause(utility_term, MaplCirup.big_and(self._wrap_in_next_state_functor(state))))
+            parsed_prog.add_clause(
+                Clause(
+                    utility_term,
+                    MaplCirup.big_and(self._wrap_in_next_state_functor(state)),
+                )
+            )
             utility_idx += 1
             state = MaplCirup.enumeration_next(state)
 
@@ -176,7 +188,9 @@ class MaplCirup:
 
         for term in state:
             if isinstance(term, Not):
-                wrapped_state.append(Term(self._next_state_functor, term.args[0]).__invert__())
+                wrapped_state.append(
+                    Term(self._next_state_functor, term.args[0]).__invert__()
+                )
             else:
                 wrapped_state.append(Term(self._next_state_functor, term))
 
@@ -189,7 +203,9 @@ class MaplCirup:
         :return: Grounded program.
         """
         queries = self._decisions + list(self._rewards) + list(self._utilities.keys())
-        queries += list(map(lambda v: Term(self._next_state_functor, v), self._state_vars))
+        queries += list(
+            map(lambda v: Term(self._next_state_functor, v), self._state_vars)
+        )
 
         # fix an order to have the same circuit size at each execution
         # (for some reason the reverse order leads to smaller circuits)
@@ -206,10 +222,12 @@ class MaplCirup:
         :return: The circuit for the given model.
         """
         # print("Start compilation")
-        kc_class = get_evaluatable(name='sddx')
+        kc_class = get_evaluatable(name="sddx")
         constraints = x_constrained_named(X_named=self._decisions)
         # starttime_compilation = time.time()
-        circuit: SDDExplicit = kc_class.create_from(grounded_prog, var_constraint=constraints)
+        circuit: SDDExplicit = kc_class.create_from(
+            grounded_prog, var_constraint=constraints
+        )
         # endtime_compilation = time.time()
         # compile_time = endtime_compilation - starttime_compilation
         # print("Compilation took %s seconds." % compile_time)
@@ -264,8 +282,16 @@ class MaplCirup:
         else:
             return And(terms.pop(), MaplCirup.big_and(terms))
 
-    def value_iteration(self, discount: float = None, error: float = None, horizon: int = None) -> None:
-        starttime_vi = time.time()
+    def value_iteration(
+        self, discount: float = None, error: float = None, horizon: int = None
+    ) -> None:
+        numba_structures = self.to_numba(self._ddc)
+
+        n_states = 2 ** len(self._ddc._state_vars)
+        cache = {}
+        cache["cache_p"] = np.zeros((self.size() + 1, n_states))
+        cache["cache_eu"] = np.zeros((self.size() + 1, n_states))
+        cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
 
         if discount is not None:
             self._discount = discount
@@ -276,20 +302,24 @@ class MaplCirup:
         if horizon is not None:
             self._horizon = horizon
 
-        old_utility = np.zeros(2**len(self._state_vars))
+        old_utility = np.zeros(n_states)
+
+        starttime_vi = time.time()
+
         while True:
             if self._discount == 1 or horizon is not None:  # loop for horizon length
                 if self._iterations_count >= self._horizon:
                     break
 
-            new_utility = self._ddc.max_eu()
+            new_utility = self._ddc.max_eu(numba_structures, cache)
 
             u_idx = 0
+            # TODO fix this loop
             for u in new_utility:
-                self._ddc.set_utility_label('u'+str(u_idx), self._discount * u)
+                self._ddc.set_utility_label("u" + str(u_idx), self._discount * u)
                 u_idx += 1
 
-            delta = np.linalg.norm(new_utility-old_utility, ord=np.inf)
+            delta = np.linalg.norm(new_utility - old_utility, ord=np.inf)
             old_utility = new_utility
             self._iterations_count += 1
 
@@ -308,6 +338,74 @@ class MaplCirup:
         endtime_vi = time.time()
         self._vi_time = endtime_vi - starttime_vi
 
+    def to_numba(self, ddc):
+        children = self.children_to_numba(ddc._children)
+        node_type = self.node_type_to_numba(ddc._type)
+        states = self.states_to_numba(ddc._states)
+        label_p, label_eu, label_max = self.label_to_numba(
+            ddc._label, len(ddc._state_vars)
+        )
+
+        numba_structures = {
+            "children": children,
+            "node_type": node_type,
+            "states": states,
+            "label_p": label_p,
+            "label_eu": label_eu,
+            "label_max": label_max,
+        }
+        return numba_structures
+
+    @staticmethod
+    def children_to_numba(children):
+        numba_children = NumbaDict()
+        for k, v in children.items():
+            if not v:
+                numba_v = np.array([-1])
+            else:
+                numba_v = np.array(v)
+            numba_children[k] = numba_v
+        return numba_children
+
+    @staticmethod
+    def node_type_to_numba(node_type):
+        numba_node_type = NumbaDict()
+        for k, v in node_type.items():
+            if v == NodeType.TRUE:
+                numba_v = 1
+            elif v == NodeType.LITERAL:
+                numba_v = 2
+            elif v == NodeType.AND:
+                numba_v = 3
+            elif v == NodeType.OR:
+                numba_v = 4
+
+            numba_node_type[k] = numba_v
+
+        return numba_node_type
+
+    @staticmethod
+    def states_to_numba(states):
+        numba_states = NumbaDict()
+        for k, v in states.items():
+            numba_states[k] = np.array(v)
+        return numba_states
+
+    @staticmethod
+    def label_to_numba(label, var_num):
+        ones = np.ones(2**var_num)
+
+        label_p = NumbaDict()
+        label_eu = NumbaDict()
+        label_max = NumbaDict()
+
+        for k, v in label.items():
+            label_p[k] = v.prob * ones
+            label_eu[k] = v.eu * ones
+            label_max[k] = len(v.dec) > 0
+
+        return label_p, label_eu, label_max
+
     def print_explicit_policy(self) -> None:
         print("\nPOLICY FUNCTION:\n")
         state = self._state_vars
@@ -320,7 +418,7 @@ class MaplCirup:
 
             _, eu, decisions = self._ddc.best_dec(state_evidence)
 
-            print(str(state) + ' -> ' + str(decisions) + ' (eu: ' + str(eu) + ')')
+            print(str(state) + " -> " + str(decisions) + " (eu: " + str(eu) + ")")
             state = MaplCirup.enumeration_next(state)
 
     def set_horizon(self, horizon: int) -> None:
@@ -357,7 +455,11 @@ class MaplCirup:
         return self._vi_time
 
     def tot_time(self) -> float:
-        return self._compile_time + self._minimize_time + (self._vi_time if self._vi_time is not None else 0)
+        return (
+            self._compile_time
+            + self._minimize_time
+            + (self._vi_time if self._vi_time is not None else 0)
+        )
 
     def view_dot(self) -> None:
         """
