@@ -288,6 +288,7 @@ class MaplCirup:
         starttime_jit = time.time()
 
         numba_structures = self.to_numba(self._ddc)
+        uindex_to_unode = numba_structures.pop("uindex_to_unode")
 
         n_states = 2 ** len(self._ddc._state_vars)
         cache = {}
@@ -320,24 +321,11 @@ class MaplCirup:
 
             # print(self._iterations_count)
 
-            print()
-            print(old_utility)
             new_utility = self._ddc.max_eu(numba_structures, cache)
-            print(new_utility)
 
-            u_idx = 0
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-            # TODO fix this loop
-
-            for u in new_utility:
-                self._ddc.set_utility_label("u" + str(u_idx), self._discount * u)
-                u_idx += 1
+            numba_structures["label_eu"] = self._ddc.update_utility_label(
+                uindex_to_unode, new_utility, numba_structures["label_eu"], discount
+            )
 
             delta = np.linalg.norm(new_utility - old_utility, ord=np.inf)
             old_utility = new_utility
@@ -362,6 +350,7 @@ class MaplCirup:
     def to_numba(self, ddc):
         children = self.children_to_numba(ddc._children)
         node_type = self.node_type_to_numba(ddc._type)
+        uindex_to_unode = self.create_utility_map(ddc._var2node, len(ddc._state_vars))
         states = self.states_to_numba(ddc._states)
         label_p, label_eu, label_max = self.label_to_numba(
             ddc._label, len(ddc._state_vars)
@@ -374,6 +363,7 @@ class MaplCirup:
         numba_structures = {
             "children": children,
             "node_type": node_type,
+            "uindex_to_unode": uindex_to_unode,
             "one_p": one_p,
             "one_eu": one_eu,
             "one_max": one_max,
@@ -411,6 +401,15 @@ class MaplCirup:
             numba_node_type[k] = numba_v
 
         return numba_node_type
+
+    @staticmethod
+    def create_utility_map(var2node, var_num):
+        uindex_to_unode = np.zeros(2**var_num, dtype=int)
+        for i in range(uindex_to_unode.shape[0]):
+            ui = f"u{i}"
+            unode = var2node[ui].pos
+            uindex_to_unode[i] = unode
+        return uindex_to_unode
 
     @staticmethod
     def states_to_numba(states):
