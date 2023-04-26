@@ -296,6 +296,8 @@ class MaplCirup:
         cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
 
         old_utility = np.zeros(n_states)
+
+        # jit happens here
         self._ddc.max_eu(numba_structures, cache)
 
         if discount is not None:
@@ -306,10 +308,6 @@ class MaplCirup:
 
         if horizon is not None:
             self._horizon = horizon
-
-        cache["cache_p"] = np.zeros((self.size() + 1, n_states))
-        cache["cache_eu"] = np.zeros((self.size() + 1, n_states))
-        cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
 
         endtime_jit = time.time()
 
