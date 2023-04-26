@@ -84,7 +84,10 @@ class DDC:
                     ddc._set_negative_label(literal_id2name[index][0], Label(1.0, 0.0, set()))
             elif isinstance(weights[key], Constant):  # probability (utilities at the beginning are all zero)
                 prob: float = weights[key].compute_value()
-                ddc._set_pn_labels(literal_id2name[index][0], key > 0, Label(prob, 0.0, set()))
+                try:
+                    ddc._set_pn_labels(literal_id2name[index][0], key > 0, Label(prob, 0.0, set()))
+                except KeyError:
+                    continue  # variable not connected to the root..?
             elif weights[key] == Term("?"):  # decision
                 node_id = ddc._var2node[literal_id2name[index][0]]
                 ddc._decisions.add(node_id.pos)
