@@ -320,9 +320,10 @@ class MaplCirup:
 
             # print(self._iterations_count)
 
-            # print(old_utility)
+            print()
+            print(old_utility)
             new_utility = self._ddc.max_eu(numba_structures, cache)
-            # print(new_utility)
+            print(new_utility)
 
             u_idx = 0
             # TODO fix this loop
