@@ -300,6 +300,9 @@ class MaplCirup:
 
         # jit happens here
         self._ddc.max_eu(numba_structures, cache)
+        self._ddc.update_utility_label(
+            uindex_to_unode, old_utility, numba_structures["label_eu"], 0.0
+        )
 
         if discount is not None:
             self._discount = discount
