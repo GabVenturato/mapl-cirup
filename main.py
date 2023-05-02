@@ -15,9 +15,9 @@ RUNS = 10
 
 def run_experiment(input_file, discount, error, res):
     mc = MaplCirup(input_file)
-    res.put((mc.size(), mc.compile_time(), mc.jit_time()))
+    res.put((mc.size(), mc.compile_time()))
     mc.value_iteration(discount=discount, error=error)
-    res.put((mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
+    res.put((mc.jit_time(), mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
 
 
 def run_experimental_evaluation():
@@ -86,9 +86,9 @@ def run_experimental_evaluation():
                                 )
                             else:
                                 # compilation finished, but value iteration not
-                                size, compile_time, jit_time = res.get()
+                                size, compile_time = res.get()
                                 fres.write(
-                                    "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,na,%s,na\n"
+                                    "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,na,na,%s,na\n"
                                     % (
                                         run,
                                         solver,
@@ -100,14 +100,13 @@ def run_experimental_evaluation():
                                         error,
                                         size,
                                         compile_time,
-                                        jit_time,
                                         compile_time,
                                     )
                                 )
                         else:
                             # everything finished
-                            size, compile_time, jit_time = res.get()
-                            vi_time, tot_time, iterations = res.get()
+                            size, compile_time = res.get()
+                            jit_time, vi_time, tot_time, iterations = res.get()
                             fres.write(
                                 "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"
                                 % (
