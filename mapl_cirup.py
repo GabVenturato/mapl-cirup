@@ -364,8 +364,8 @@ class MaplCirup:
             ddc._label, len(ddc._state_vars)
         )
 
-        one_p = np.ones(2 * len(ddc._states))
-        one_eu = np.zeros(2 * len(ddc._states))
+        one_p = np.ones(2 ** len(self._ddc._state_vars))
+        one_eu = np.zeros(2 ** len(self._ddc._state_vars))
         one_max = False
 
         numba_structures = {
