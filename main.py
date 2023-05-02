@@ -17,7 +17,7 @@ def run_experiment(input_file, discount, error, res):
     mc = MaplCirup(input_file)
     res.put((mc.size(), mc.compile_time()))
     mc.value_iteration(discount=discount, error=error)
-    res.put((mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
+    res.put((mc.jit_time(), mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
 
 
 def run_experimental_evaluation():
@@ -31,7 +31,7 @@ def run_experimental_evaluation():
     with open(res_dir + "/" + timestamp + "_exp-eval.csv", "w") as fres:
         header = (
             "run,solver,filename,family,var_num,timeout,discount,error,"
-            "circuit_size,compile_time,vi_time,tot_time,vi_iterations\n"
+            "circuit_size,compile_time,jit_time,vi_time,tot_time,vi_iterations\n"
         )
         fres.write(header)
 
@@ -72,7 +72,7 @@ def run_experimental_evaluation():
                             if res.empty():
                                 # compilation didn't finish
                                 fres.write(
-                                    "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na\n"
+                                    "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na,na\n"
                                     % (
                                         run,
                                         solver,
@@ -88,7 +88,7 @@ def run_experimental_evaluation():
                                 # compilation finished, but value iteration not
                                 size, compile_time = res.get()
                                 fres.write(
-                                    "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,na,%s,na\n"
+                                    "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,na,na,%s,na\n"
                                     % (
                                         run,
                                         solver,
@@ -106,9 +106,9 @@ def run_experimental_evaluation():
                         else:
                             # everything finished
                             size, compile_time = res.get()
-                            vi_time, tot_time, iterations = res.get()
+                            jit_time, vi_time, tot_time, iterations = res.get()
                             fres.write(
-                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"
+                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"
                                 % (
                                     run,
                                     solver,
@@ -120,6 +120,7 @@ def run_experimental_evaluation():
                                     error,
                                     size,
                                     compile_time,
+                                    jit_time,
                                     vi_time,
                                     tot_time,
                                     iterations,
@@ -199,7 +200,7 @@ def run_experimental_evaluation():
                                     iterations = match.group(1)
 
                             fres.write(
-                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,na,%s,%s,%s\n"
+                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,na,na,%s,%s,%s\n"
                                 % (
                                     run,
                                     solver,
@@ -220,7 +221,7 @@ def run_experimental_evaluation():
                         except subprocess.TimeoutExpired:
                             spudd_proc.kill()
                             fres.write(
-                                "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na\n"
+                                "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na,na\n"
                                 % (
                                     run,
                                     solver,
