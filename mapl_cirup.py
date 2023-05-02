@@ -297,11 +297,12 @@ class MaplCirup:
         cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
 
         old_utility = np.zeros(n_states)
+        ones = np.ones(n_states)
 
         # jit happens here
         self._ddc.max_eu(numba_structures, cache)
         self._ddc.update_utility_label(
-            uindex_to_unode, old_utility, numba_structures["label_eu"], 0.0
+            uindex_to_unode, old_utility, numba_structures["label_eu"], discount, ones
         )
 
         if discount is not None:
@@ -327,7 +328,11 @@ class MaplCirup:
             new_utility = self._ddc.max_eu(numba_structures, cache)
 
             numba_structures["label_eu"] = self._ddc.update_utility_label(
-                uindex_to_unode, new_utility, numba_structures["label_eu"], discount
+                uindex_to_unode,
+                new_utility,
+                numba_structures["label_eu"],
+                discount,
+                ones,
             )
 
             delta = np.linalg.norm(new_utility - old_utility, ord=np.inf)

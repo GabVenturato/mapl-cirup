@@ -420,8 +420,12 @@ class DDC:
             cache_max,
         )
 
-    def update_utility_label(self, uindex_to_unode, new_utility, label_eu, discount):
-        return _update_utility_label(uindex_to_unode, new_utility, label_eu, discount)
+    def update_utility_label(
+        self, uindex_to_unode, new_utility, label_eu, discount, ones
+    ):
+        return _update_utility_label(
+            uindex_to_unode, new_utility, label_eu, discount, ones
+        )
 
     def best_dec(self, state: Dict[str, bool] = None) -> Label:
         return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
@@ -674,9 +678,8 @@ def _max_eu(
 
 
 @numba.njit(fastmath=True, parallel=False)
-def _update_utility_label(uindex_to_unode, new_utility, label_eu, discount):
-    ones = np.ones_like(new_utility)
-    for i in range(len(new_utility)):
+def _update_utility_label(uindex_to_unode, new_utility, label_eu, discount, ones):
+    for i in range(new_utility.shape[0]):
         unode = uindex_to_unode[i]
         label_eu[unode] = (discount * new_utility[i]) * ones
 
