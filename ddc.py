@@ -27,6 +27,7 @@ class DDC:
     _decisions: Set[int] = set()
     _semiring = MEUSemiring()
     _id = 1
+    _reuse_and_nodes_counter = 0
 
     def __init__(self):
         self._root: int = self._false
@@ -37,6 +38,9 @@ class DDC:
         self._cache: Dict[int, Label] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, np.array] = dict()
+        self._compact_and_nodes = False
+        self._reuse_and_nodes = True
+        self._ands: Dict[(int, int), int] = dict()
 
     @classmethod
     def create_from(
@@ -249,19 +253,38 @@ class DDC:
                     # Create AND node
                     # If an AND node has an AND child, I can compact it
                     sub_children = [sub_node]
-                    if self._type[sub_node] == NodeType.AND:
+                    if self._compact_and_nodes and self._type[sub_node] == NodeType.AND:
                         sub_children = self._children[sub_node]
                         self._children.pop(sub_node)
                         self._type.pop(sub_node)
                     prime_children = [prime_node]
-                    if self._type[prime_node] == NodeType.AND:
+                    if self._compact_and_nodes and self._type[prime_node] == NodeType.AND:
                         prime_children = self._children[prime_node]
                         self._children.pop(prime_node)
                         self._type.pop(prime_node)
-                    node_id = self._id
-                    self._id += 1
-                    self._children[node_id] = sub_children + prime_children
-                    self._type[node_id] = NodeType.AND
+                    node_id = None
+                    if not self._compact_and_nodes and self._reuse_and_nodes:
+                        # It makes more sense to do this only if we don't compact and nodes otherwise we have to be
+                        # careful to not compact AND nodes that are shared (i.e. with more than one parent)
+                        # TODO : Check if make sense to compact consecutive AND nodes where the child doesn't have any other parents
+                        try:
+                            node_id = self._ands[(prime_node, sub_node)]
+                            self._reuse_and_nodes_counter += 1
+                        except KeyError:
+                            # TODO: This was a quick check to see if order of operands matter, but apparently not. Leave this for future reference.
+                            # if (sub_node, prime_node) in self._ands:
+                            #     print("You can compact more!")
+                            self._ands[(prime_node, sub_node)] = self._id
+                        # for nid, children in self._children.items():
+                        #     if children == sub_children + prime_children:
+                        #         node_id = nid
+                        #         self._reuse_and_nodes_counter += 1
+                        #         break
+                    if node_id is None:
+                        node_id = self._id
+                        self._id += 1
+                        self._children[node_id] = sub_children + prime_children
+                        self._type[node_id] = NodeType.AND
                     or_children.append(node_id)
             # Create OR node
             if len(or_children) == 0:
@@ -277,7 +300,7 @@ class DDC:
                 return node_id
 
         else:
-            raise TypeError("Unknown type for node %s" % node)
+            raise TypeError('Unknown type for node %s' % node)
 
     def view_dot(self) -> None:
         """
@@ -522,34 +545,24 @@ class DDC:
         return impossible_utilities
 
     def print_info(self):
-        print(
-            "Number of AND nodes: %s"
-            % len([x for x in self._children if self._type[x] == NodeType.AND])
-        )
-        print(
-            "Number of multiplications required: %s"
-            % sum(
-                [
-                    len(self._children[x])
-                    for x in self._children
-                    if self._type[x] == NodeType.AND
-                ]
-            )
-        )
-        print(
-            "Number of OR nodes: %s"
-            % len([x for x in self._children if self._type[x] == NodeType.OR])
-        )
-        print(
-            "Number of sum/max required: %s"
-            % sum(
-                [
-                    len(self._children[x])
-                    for x in self._children
-                    if self._type[x] == NodeType.OR
-                ]
-            )
-        )
+        print("Number of re-used AND nodes: %s" % self._reuse_and_nodes_counter)
+        print("Number of literals: %s" % len([x for x in self._children if self._type[x] == NodeType.LITERAL]))
+        print("Number of leaves: %s" % len([x for x in self._children if len(self._children[x]) == 0]))
+        print("Number of AND nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.AND]))
+        print("Number of multiplications required: %s" %
+              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]))
+        print("Number of OR nodes: %s" % len([x for x in self._children if self._type[x] == NodeType.OR]))
+        print("Number of sum/max required: %s" %
+              sum([len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]))
+
+        or_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.OR]
+        and_nodes_degree = [len(self._children[x]) for x in self._children if self._type[x] == NodeType.AND]
+        print("Max OR nodes degree: %s" % max(or_nodes_degree))
+        mean = sum(or_nodes_degree) / len(or_nodes_degree)
+        print("Average OR nodes degree: %s (+-%s)" % (mean, np.std(or_nodes_degree)))
+        print("Max AND nodes degree: %s" % max(and_nodes_degree))
+        mean = sum(and_nodes_degree) / len(and_nodes_degree)
+        print("Average AND nodes degree: %s (+-%s)" % (mean,  np.std(and_nodes_degree)))
 
 
 class NodeType(Enum):
