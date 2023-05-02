@@ -226,6 +226,9 @@ class DDC:
                             node_id = self._ands[(prime_node, sub_node)]
                             self._reuse_and_nodes_counter += 1
                         except KeyError:
+                            # TODO: This was a quick check to see if order of operands matter, but apparently not. Leave this for future reference.
+                            # if (sub_node, prime_node) in self._ands:
+                            #     print("You can compact more!")
                             self._ands[(prime_node, sub_node)] = self._id
                         # for nid, children in self._children.items():
                         #     if children == sub_children + prime_children:
