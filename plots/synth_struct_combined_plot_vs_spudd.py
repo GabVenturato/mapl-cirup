@@ -23,6 +23,7 @@ def _get_synth_chain_data():
     df['var_num'] = df['var_num'].astype(int)
     df['vi_time'] = df['vi_time'].astype(float)
     df['tot_time'] = df['tot_time'].astype(float)
+    df.loc[df['vi_time'] < TIMEOUT, 'tot_time'] =  df['tot_time'] - df['jit_time'].astype(float)  # Remove jit time
 
     df_compilation = df.loc[df['solver'] == 'mapl-cirup']
     df_compilation = df_compilation[['run', 'solver', 'var_num', 'tot_time']]
@@ -49,6 +50,7 @@ def _get_synth_cross_stitch_data():
     df['var_num'] = df['var_num'].astype(int)
     df['vi_time'] = df['vi_time'].astype(float)
     df['tot_time'] = df['tot_time'].astype(float)
+    df.loc[df['vi_time'] < TIMEOUT, 'tot_time'] = df['tot_time'] - df['jit_time'].astype(float)  # Remove jit time
 
     df_compilation = df.loc[df['solver'] == 'mapl-cirup']
     df_compilation = df_compilation[['run', 'solver', 'var_num', 'tot_time']]
@@ -92,14 +94,15 @@ def create_plot(out_filename=None):
     # cross-stitch
     #
     data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd"]
+    data_spudd = data_spudd.replace(0, 0.001)  # Can't be zero the time. SPUDD precision is too low.
     x = data_spudd["var_num"]
     y = data_spudd["time"]
     assert len(x) > 0
     axs[0].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
     data_mapl_vi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (vi)"]
-    x = data_mapl_vi["var_num"]
-    y = data_mapl_vi["time"]
+    x = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 8, 'var_num']
+    y = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 8, 'time']
     assert len(x) > 0
     axs[0].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
 
@@ -128,8 +131,8 @@ def create_plot(out_filename=None):
     axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
     data_mapl_vi = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
-    x = data_mapl_vi["var_num"]
-    y = data_mapl_vi["time"]
+    x = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'var_num']
+    y = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'time']
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
 
