@@ -40,7 +40,7 @@ class MaplCirup:
     ] = {}  # Added (expected) utility parameters with their state
     _iterations_count: int = 0  # Number of iterations for policy convergence
     _vi_time = None  # Time required for value iteration
-    _minimisation_on = False  # Activate the SDD minimisation
+    _minimisation_on = True  # Activate the SDD minimisation
     _minimize_time = 0  # Default minimisation time
 
     def __init__(self, filename, minimisation=False):
@@ -218,7 +218,7 @@ class MaplCirup:
         # fix an order to have the same circuit size at each execution
         # (for some reason the reverse order leads to smaller circuits)
         # queries.sort(key=repr, reverse=True)
-        queries.sort(key=repr)
+        # queries.sort(key=repr)
 
         queries.append(self._true_term)
 
