@@ -156,23 +156,11 @@ def create_plot(out_filename=None):
     #
     # chain
     #
-    data_spudd = data_chain[data_chain["solver"] == "spudd"]
-    x = data_spudd["var_num"]
-    y = data_spudd["time"]
-    assert len(x) > 0
-    axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
-
     data_mapl_vi = data_chain[data_chain["solver"] == "mapl-cirup (vi)"]
     x = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'var_num']
     y = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'time']
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
-
-    data_mapl_kcvi = data_chain[data_chain["solver"] == "mapl-cirup (kc+vi)"]
-    x = data_mapl_kcvi["var_num"]
-    y = data_mapl_kcvi["time"]
-    assert len(x) > 0
-    axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
 
     data_mapl_vi_approx = data_chain[data_chain["solver"] == "mapl-cirup-approx"]
     x = data_mapl_vi_approx['var_num']
@@ -180,11 +168,23 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_approx_vi, marker=".", label=label_mapl_approx_vi)
 
+    data_mapl_kcvi = data_chain[data_chain["solver"] == "mapl-cirup (kc+vi)"]
+    x = data_mapl_kcvi["var_num"]
+    y = data_mapl_kcvi["time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
+
     data_mapl_approx_kcvi = data_chain[data_chain["solver"] == "mapl-cirup-approx (kc+vi)"]
     x = data_mapl_approx_kcvi["var_num"]
     y = data_mapl_approx_kcvi["time"]
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_approx_kcvi, marker=".", label=label_mapl_approx_kcvi)
+
+    data_spudd = data_chain[data_chain["solver"] == "spudd"]
+    x = data_spudd["var_num"]
+    y = data_spudd["time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
     axs[1].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
