@@ -13,10 +13,10 @@ TIMEOUT = 10 * 60  # seconds
 RUNS = 3
 
 
-def run_experiment(input_file, discount, error, res):
+def run_experiment(input_file, horizon, res):
     mc = MaplCirup(input_file)
     res.put((mc.size(), mc.compile_time()))
-    mc.value_iteration(discount=discount, error=error)
+    mc.value_iteration(horizon=horizon)
     res.put((mc.jit_time(), mc.value_iteration_time(), mc.tot_time(), mc.iterations()))
 
 
@@ -57,11 +57,12 @@ def run_experimental_evaluation():
                             % (run, input_file)
                         )
                         res = multiprocessing.Queue()
-                        discount = 0.9
-                        error = 0.1
+                        horizon = 50
+                        discount = 1.0
+                        error = 0.0
                         p = multiprocessing.Process(
                             target=run_experiment,
-                            args=(input_file, discount, error, res),
+                            args=(input_file, horizon, res),
                         )
                         p.start()
                         p.join(TIMEOUT)
