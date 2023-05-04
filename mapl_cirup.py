@@ -59,7 +59,7 @@ class MaplCirup:
         self._decisions = self._get_decisions(prog)
         self._state_vars = MaplCirup._get_state_vars(prog)
         self._add_state_priors(prog)
-        self._add_utility_parameters(prog)
+        # self._add_utility_parameters(prog)
         grounded_prog = self._grounding(prog)
 
         print("Compiling...")
@@ -83,6 +83,14 @@ class MaplCirup:
         # (p, eu, dec) = self._ddc.maxeu()  # {'hit': False}
         # print("DDC maxeu eval: %s, %s, %s" % (p, eu, dec))
         self._ddc.print_info()
+
+        approx_rows = list()
+        var_num: int = len(self._state_vars)
+        for i in range(len(self._state_vars)):
+            var_num -= 1
+            approx_rows.append(np.tile(np.repeat(np.array([1, 0]), 2 ** i), 2 ** var_num))
+        self._approx_matrix = np.stack(approx_rows)
+        self._approx_z = 2 ** (len(self._state_vars)-1)
 
         return
 
@@ -160,28 +168,28 @@ class MaplCirup:
                 new_var.probability = Constant(1.0)
             parsed_prog.add_fact(new_var)
 
-    def _add_utility_parameters(self, parsed_prog: ClauseDB) -> None:
-        """
-        Add parameters representing the future expected utility. They must be connected to primed variables, i.e. the
-        next state in the transition function.
-        TODO: Optionally add a utility parameter if the corresponding state has probability > 0.
-        :param parsed_prog: Parsed program.
-        :return: Void.
-        """
-        utility_idx: int = 0
-        state = self._state_vars
-
-        while state:
-            utility_term = Term("u" + str(utility_idx))
-            self._utilities[utility_term] = state
-            parsed_prog.add_clause(
-                Clause(
-                    utility_term,
-                    MaplCirup.big_and(self._wrap_in_next_state_functor(state)),
-                )
-            )
-            utility_idx += 1
-            state = MaplCirup.enumeration_next(state)
+    # def _add_utility_parameters(self, parsed_prog: ClauseDB) -> None:
+    #     """
+    #     Add parameters representing the future expected utility. They must be connected to primed variables, i.e. the
+    #     next state in the transition function.
+    #     TODO: Optionally add a utility parameter if the corresponding state has probability > 0.
+    #     :param parsed_prog: Parsed program.
+    #     :return: Void.
+    #     """
+    #     utility_idx: int = 0
+    #     state = self._state_vars
+    #
+    #     while state:
+    #         utility_term = Term("u" + str(utility_idx))
+    #         self._utilities[utility_term] = state
+    #         parsed_prog.add_clause(
+    #             Clause(
+    #                 utility_term,
+    #                 MaplCirup.big_and(self._wrap_in_next_state_functor(state)),
+    #             )
+    #         )
+    #         utility_idx += 1
+    #         state = MaplCirup.enumeration_next(state)
 
     def _wrap_in_next_state_functor(self, state: List[Term]) -> List[Term]:
         wrapped_state = []
@@ -290,20 +298,15 @@ class MaplCirup:
         numba_structures = self.to_numba(self._ddc)
         uindex_to_unode = numba_structures.pop("uindex_to_unode")
 
-        n_states = 2 ** len(self._ddc._state_vars)
+        n_vars = len(self._ddc._state_vars)
+        n_states = 2 ** n_vars
         cache = {}
         cache["cache_p"] = np.zeros((self.size() + 1, n_states))
         cache["cache_eu"] = np.zeros((self.size() + 1, n_states))
         cache["cache_max"] = np.zeros(self.size() + 1, dtype=bool)
 
-        old_utility = np.zeros(n_states)
+        old_utility = np.zeros(n_vars)
         ones = np.ones(n_states)
-
-        # jit happens here
-        self._ddc.max_eu(numba_structures, cache)
-        self._ddc.update_utility_label(
-            uindex_to_unode, old_utility, numba_structures["label_eu"], discount, ones
-        )
 
         if discount is not None:
             self._discount = discount
@@ -313,6 +316,12 @@ class MaplCirup:
 
         if horizon is not None:
             self._horizon = horizon
+
+        # jit happens here
+        self._ddc.max_eu(numba_structures, cache)
+        self._ddc.update_utility_label(
+            uindex_to_unode, old_utility, numba_structures["label_eu"], self._discount, ones
+        )
 
         endtime_jit = time.time()
 
@@ -327,16 +336,18 @@ class MaplCirup:
 
             new_utility = self._ddc.max_eu(numba_structures, cache)
 
+            approx_util = np.matmul(self._approx_matrix, new_utility) / self._approx_z
+
             numba_structures["label_eu"] = self._ddc.update_utility_label(
                 uindex_to_unode,
-                new_utility,
+                approx_util,
                 numba_structures["label_eu"],
-                discount,
+                self._discount,
                 ones,
             )
 
-            delta = np.linalg.norm(new_utility - old_utility, ord=np.inf)
-            old_utility = new_utility
+            delta = np.linalg.norm(approx_util - old_utility, ord=np.inf)
+            old_utility = approx_util
             self._iterations_count += 1
 
             # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
@@ -358,7 +369,7 @@ class MaplCirup:
     def to_numba(self, ddc):
         children = self.children_to_numba(ddc._children)
         node_type = self.node_type_to_numba(ddc._type)
-        uindex_to_unode = self.create_utility_map(ddc._var2node, len(ddc._state_vars))
+        uindex_to_unode = self.create_utility_map(ddc)
         states = self.states_to_numba(ddc._states)
         label_p, label_eu, label_max = self.label_to_numba(
             ddc._label, len(ddc._state_vars)
@@ -411,12 +422,13 @@ class MaplCirup:
         return numba_node_type
 
     @staticmethod
-    def create_utility_map(var2node, var_num):
-        uindex_to_unode = np.zeros(2**var_num, dtype=int)
-        for i in range(uindex_to_unode.shape[0]):
-            ui = f"u{i}"
-            unode = var2node[ui].pos
-            uindex_to_unode[i] = unode
+    def create_utility_map(ddc):
+        uindex_to_unode = np.zeros(len(ddc._state_vars), dtype=int)
+        i = 0
+        for var in ddc._state_vars:
+            u_var = "x(%s)" % var
+            uindex_to_unode[i] = ddc._var2node[u_var].pos
+            i += 1
         return uindex_to_unode
 
     @staticmethod

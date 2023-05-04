@@ -10,7 +10,7 @@ from problog.util import init_logger
 from mapl_cirup import MaplCirup
 
 TIMEOUT = 10 * 60  # seconds
-RUNS = 10
+RUNS = 3
 
 
 def run_experiment(input_file, discount, error, res):
@@ -37,7 +37,7 @@ def run_experimental_evaluation():
 
         for run in range(1, RUNS + 1):
             # mapl-cirup
-            solver = "mapl-cirup"
+            solver = "mapl-cirup-approx"
             print("\n\nMAPL-CIRUP\n")
             for root, dirs, files in os.walk("./examples"):
                 family = os.path.basename(os.path.normpath(root))
@@ -130,111 +130,111 @@ def run_experimental_evaluation():
                         fres.flush()
 
             # spudd
-            solver = "spudd"
-            print("\n\nSPUDD\n")
-            for root, dirs, files in os.walk("./examples"):
-                family = os.path.basename(os.path.normpath(root))
-                for file in files:
-                    if file.endswith(".dat"):
-                        # retrieve var number
-                        var_num = "n"
-                        var_num_pattern = re.compile("_v([0-9]+)")
-                        match = re.search(var_num_pattern, file)
-                        if match:
-                            var_num = match.group(1)
-
-                        # execute experiments
-                        input_file = os.path.join(root, file)
-                        print(
-                            "\n\n-> Executing spudd (run %s) on %s..."
-                            % (run, input_file)
-                        )
-
-                        # find discount and error in input file
-                        discount = "na"
-                        error = "na"
-                        discount_pattern = re.compile("discount\s+([0-9\.]+)")
-                        error_pattern = re.compile("tolerance\s+([0-9\.]+)")
-                        for line in open(input_file):
-                            match = re.search(discount_pattern, line)
-                            if match:
-                                discount = round(float(match.group(1)), 2)
-                            match = re.search(error_pattern, line)
-                            if match:
-                                error = match.group(1)
-
-                        try:
-                            spudd_proc = subprocess.Popen(
-                                [
-                                    "./examples/executables/spudd-linux",
-                                    input_file,
-                                    "-o",
-                                    res_dir + "/spudd",
-                                ]
-                            )
-                            spudd_proc.communicate(timeout=TIMEOUT)
-
-                            # find stats
-                            size = "na"
-                            vi_time = "na"
-                            iterations = "na"
-                            size_pattern = re.compile(
-                                "Total number of nodes allocated:\s([0-9]+)"
-                            )
-                            vi_time_pattern = re.compile(
-                                "\sFinal execution time:\s+([0-9\.]+)"
-                            )
-                            iterations_pattern = re.compile(
-                                "\sIterations to convergence\s([0-9]+)"
-                            )
-
-                            for line in open(res_dir + "/spudd-stats.dat"):
-                                match = re.search(size_pattern, line)
-                                if match:
-                                    size = match.group(1)
-                                match = re.search(vi_time_pattern, line)
-                                if match:
-                                    vi_time = round(float(match.group(1)), 2)
-                                match = re.search(iterations_pattern, line)
-                                if match:
-                                    iterations = match.group(1)
-
-                            fres.write(
-                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,na,na,%s,%s,%s\n"
-                                % (
-                                    run,
-                                    solver,
-                                    input_file,
-                                    family,
-                                    var_num,
-                                    TIMEOUT,
-                                    discount,
-                                    error,
-                                    size,
-                                    vi_time,
-                                    vi_time,
-                                    iterations,
-                                )
-                            )
-                            os.remove(res_dir + "/spudd-stats.dat")
-                            os.remove(res_dir + "/spudd-OPTDual.ADD")
-                        except subprocess.TimeoutExpired:
-                            spudd_proc.kill()
-                            fres.write(
-                                "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na,na\n"
-                                % (
-                                    run,
-                                    solver,
-                                    input_file,
-                                    family,
-                                    var_num,
-                                    TIMEOUT,
-                                    discount,
-                                    error,
-                                )
-                            )
-
-                        fres.flush()
+            # solver = "spudd"
+            # print("\n\nSPUDD\n")
+            # for root, dirs, files in os.walk("./examples"):
+            #     family = os.path.basename(os.path.normpath(root))
+            #     for file in files:
+            #         if file.endswith(".dat"):
+            #             # retrieve var number
+            #             var_num = "n"
+            #             var_num_pattern = re.compile("_v([0-9]+)")
+            #             match = re.search(var_num_pattern, file)
+            #             if match:
+            #                 var_num = match.group(1)
+            #
+            #             # execute experiments
+            #             input_file = os.path.join(root, file)
+            #             print(
+            #                 "\n\n-> Executing spudd (run %s) on %s..."
+            #                 % (run, input_file)
+            #             )
+            #
+            #             # find discount and error in input file
+            #             discount = "na"
+            #             error = "na"
+            #             discount_pattern = re.compile("discount\s+([0-9\.]+)")
+            #             error_pattern = re.compile("tolerance\s+([0-9\.]+)")
+            #             for line in open(input_file):
+            #                 match = re.search(discount_pattern, line)
+            #                 if match:
+            #                     discount = round(float(match.group(1)), 2)
+            #                 match = re.search(error_pattern, line)
+            #                 if match:
+            #                     error = match.group(1)
+            #
+            #             try:
+            #                 spudd_proc = subprocess.Popen(
+            #                     [
+            #                         "./examples/executables/spudd-linux",
+            #                         input_file,
+            #                         "-o",
+            #                         res_dir + "/spudd",
+            #                     ]
+            #                 )
+            #                 spudd_proc.communicate(timeout=TIMEOUT)
+            #
+            #                 # find stats
+            #                 size = "na"
+            #                 vi_time = "na"
+            #                 iterations = "na"
+            #                 size_pattern = re.compile(
+            #                     "Total number of nodes allocated:\s([0-9]+)"
+            #                 )
+            #                 vi_time_pattern = re.compile(
+            #                     "\sFinal execution time:\s+([0-9\.]+)"
+            #                 )
+            #                 iterations_pattern = re.compile(
+            #                     "\sIterations to convergence\s([0-9]+)"
+            #                 )
+            #
+            #                 for line in open(res_dir + "/spudd-stats.dat"):
+            #                     match = re.search(size_pattern, line)
+            #                     if match:
+            #                         size = match.group(1)
+            #                     match = re.search(vi_time_pattern, line)
+            #                     if match:
+            #                         vi_time = round(float(match.group(1)), 2)
+            #                     match = re.search(iterations_pattern, line)
+            #                     if match:
+            #                         iterations = match.group(1)
+            #
+            #                 fres.write(
+            #                     "%s,%s,%s,%s,%s,%s,%s,%s,%s,na,na,%s,%s,%s\n"
+            #                     % (
+            #                         run,
+            #                         solver,
+            #                         input_file,
+            #                         family,
+            #                         var_num,
+            #                         TIMEOUT,
+            #                         discount,
+            #                         error,
+            #                         size,
+            #                         vi_time,
+            #                         vi_time,
+            #                         iterations,
+            #                     )
+            #                 )
+            #                 os.remove(res_dir + "/spudd-stats.dat")
+            #                 os.remove(res_dir + "/spudd-OPTDual.ADD")
+            #             except subprocess.TimeoutExpired:
+            #                 spudd_proc.kill()
+            #                 fres.write(
+            #                     "%s,%s,%s,%s,%s,%s,%s,%s,na,na,na,na,na,na\n"
+            #                     % (
+            #                         run,
+            #                         solver,
+            #                         input_file,
+            #                         family,
+            #                         var_num,
+            #                         TIMEOUT,
+            #                         discount,
+            #                         error,
+            #                     )
+            #                 )
+            #
+            #             fres.flush()
 
 
 def main(argv):
@@ -256,10 +256,10 @@ def main(argv):
         print("Circuit size: %s" % mc.size())
 
         # mc.value_iteration(discount=0.9, error=0.01)
-        mc.value_iteration(discount=0.9, error=0.1)
+        # mc.value_iteration(discount=0.9, error=0.1)
         # mc.value_iteration(discount=0.9)
         # mc.value_iteration(discount=0.9, horizon=1)
-        # mc.value_iteration(horizon=10)
+        mc.value_iteration(horizon=50)
         # mc.value_iteration()  # = immediate reward
 
         print("JIT time: %s" % mc.jit_time())
