@@ -217,7 +217,8 @@ class MaplCirup:
 
         # fix an order to have the same circuit size at each execution
         # (for some reason the reverse order leads to smaller circuits)
-        queries.sort(key=repr, reverse=True)
+        # queries.sort(key=repr, reverse=True)
+        queries.sort(key=repr)
 
         queries.append(self._true_term)
 
