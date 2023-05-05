@@ -261,7 +261,7 @@ def gen_spudd_model(dec_num, var_num, reward):
 
 if __name__ == '__main__':
     for dec_num in range(1, 2):
-        for var_num in range(17, 21):
+        for var_num in range(16, 19):
             trans = gen_transition(dec_num, var_num)
             print("\nTransition:")
             for el in trans:

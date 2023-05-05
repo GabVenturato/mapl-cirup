@@ -13,7 +13,7 @@ def _get_synth_chain_data():
     df = df.loc[df['family'] == 'synth_struct_chain']
 
     df = df[df['var_num'] > 1]  # skip first because times are zero (not well pictured in log scale)
-    # df = df[df['var_num'] <= 8]  # skip >= 8 because all timeouts
+    df = df[df['var_num'] <= 12]  # skip >= 8 because all timeouts
     # max_vars = df['var_num'].max()
     # max_vars = 8
 
@@ -163,8 +163,8 @@ def create_plot(out_filename=None):
     axs[1].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
 
     data_mapl_vi_approx = data_chain[data_chain["solver"] == "mapl-cirup-approx"]
-    x = data_mapl_vi_approx['var_num']
-    y = data_mapl_vi_approx['time']
+    x = data_mapl_vi_approx.loc[data_mapl_vi_approx['var_num'] <= 11, 'var_num']
+    y = data_mapl_vi_approx.loc[data_mapl_vi_approx['var_num'] <= 11, 'time']
     assert len(x) > 0
     axs[1].plot(x, y, color=color_mapl_approx_vi, marker=".", label=label_mapl_approx_vi)
 
