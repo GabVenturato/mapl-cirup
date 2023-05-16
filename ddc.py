@@ -41,7 +41,7 @@ class DDC:
         self._ands: Dict[(int, int), int] = dict()
 
     @classmethod
-    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]):
+    def create_from(cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]) -> 'DDC':
         root: SddNode = sdd.get_root_inode()
 
         ddc = cls()
