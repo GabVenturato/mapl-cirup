@@ -37,6 +37,9 @@ class MaplCirup:
     _utilities: Dict[
         Term, List[Term]
     ] = {}  # Added (expected) utility parameters with their state
+    _interface: Dict[
+        Term, List[Term]
+    ] = {}  # Added interface parameters with their state
     _iterations_count: int = 0  # Number of iterations for policy convergence
     _vi_time = None  # Time required for value iteration
     _tf_graph_time = None  # Time required to produce the TensorFlow graph
@@ -59,6 +62,7 @@ class MaplCirup:
         self._decisions = self._get_decisions(prog)
         self._state_vars = MaplCirup._get_state_vars(prog)
         self._add_state_priors(prog)
+        self._add_interface_parameters(prog)
         self._add_utility_parameters(prog)
         grounded_prog = self._grounding(prog)
 
@@ -181,6 +185,27 @@ class MaplCirup:
                 )
             )
             utility_idx += 1
+            state = MaplCirup.enumeration_next(state)
+
+    def _add_interface_parameters(self, parsed_prog: ClauseDB) -> None:
+        """
+        Add parameters representing the explicit state for filtering process.
+        :param parsed_prog: Parsed program.
+        :return: Void.
+        """
+        interface_idx: int = 0
+        state = self._state_vars
+
+        while state:
+            interface_term = Term("i" + str(interface_idx))
+            self._interface[interface_term] = state
+            parsed_prog.add_clause(
+                Clause(
+                    interface_term,
+                    MaplCirup.big_and(state),
+                )
+            )
+            interface_idx += 1
             state = MaplCirup.enumeration_next(state)
 
     def _wrap_in_next_state_functor(self, state: List[Term]) -> List[Term]:
