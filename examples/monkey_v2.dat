@@ -1,0 +1,61 @@
+(variables (hit yes no) (stink_hit yes no) (stink_safe yes no))
+
+action move
+    hit         (hit    (yes    (0.2 0.8))
+                        (no     (0.5 0.5)))
+    stink_hit   (stink_hit  (yes    (hit    (yes    (0.54, 0.46))
+                                            (no     (0.48, 0.52))
+                                    )
+                            )
+                            (no     (hit    (yes    (0.36, 0.64))
+                                            (no     (0.32, 0.68))
+                                    )
+                            )
+                )
+    stink_safe  (stink_safe (yes    (hit    (yes    (0.3, 0.7))
+                                            (no     (0.06, 0.94))
+                                    )
+                            )
+                            (no     (hit    (yes    (0.2, 0.8))
+                                            (no     (0.04, 0.96))
+                                    )
+                            )
+                )
+    cost (1.0)
+endaction
+
+action stay
+    hit     (hit    (yes  (0.2 0.8))
+                    (no   (0.8 0.2)))
+    stink_hit   (stink_hit  (yes    (hit    (yes    (0.54, 0.46))
+                                            (no     (0.48, 0.52))
+                                    )
+                            )
+                            (no     (hit    (yes    (0.36, 0.64))
+                                            (no     (0.32, 0.68))
+                                    )
+                            )
+                )
+    stink_safe  (stink_safe (yes    (hit    (yes    (0.3, 0.7))
+                                            (no     (0.06, 0.94))
+                                    )
+                            )
+                            (no     (hit    (yes    (0.2, 0.8))
+                                            (no     (0.04, 0.96))
+                                    )
+                            )
+                )
+endaction
+
+reward [+   (hit    (yes    (-10.0))
+                    (no     (0.0))
+            )
+            (stink_hit  (yes    (-4.0))
+                        (no     (0.0))
+            )
+            (stink_safe (yes    (-4.0))
+                        (no     (0.0))
+            )]
+
+discount 0.900000
+tolerance 0.1
