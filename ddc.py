@@ -55,6 +55,8 @@ class DDC:
         ddc = cls()
         ddc._state_vars = [str(x) for x in state_vars]
         ddc._id2actvar = id2actvar
+        # for _, actvar in id2actvar.items():
+        #     ddc._id2actvar.append(actvar)
 
         # Retrieve variable names
         literal_id2name: Dict[int, List[str]] = dict()
@@ -404,11 +406,10 @@ class DDC:
     def filter(self, new_interface_prob: tf.Tensor, actions: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
         act_node_ids = []
-        i = 0
-        for act in actions:
+        for i, act in enumerate(actions):
             if act:
-                act_node_ids.append(self._var2node[self._id2actvar[i]].pos)
-            i += 1
+                actvar = self._id2actvar[i]
+                act_node_ids.append(self._var2node[actvar].pos)
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
                 cache[node] = self._semiring.one()

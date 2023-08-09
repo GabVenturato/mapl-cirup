@@ -33,7 +33,7 @@ class EUSemiring:
 
     @staticmethod
     def value(a):
-        return a.prob, a.eu
+        return a[0], a[1]
 
     @staticmethod
     def normalise(a, z):

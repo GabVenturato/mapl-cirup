@@ -39,7 +39,7 @@ class DDCModel(tf.keras.Model):
         for el in trajectories:
             exp_rewards_traj = []
             for act in el:
-                new_interface, exp_reward = self._ddc.tf_filter(old_interface, act)  # TODO: Do we need the tf version?
+                new_interface, exp_reward = self._ddc.filter(old_interface, act)
 
                 exp_rewards_traj.append(tf.reduce_sum(exp_reward))
                 old_interface = new_interface
