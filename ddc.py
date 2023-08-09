@@ -128,7 +128,7 @@ class DDC:
             if key is None:  # if it is None it means r is not in the circuit
                 continue
 
-            ddc._init_reward_label(str(r), key > 0, tf.Variable(rewards[r].compute_value()))
+            ddc._init_reward_label(str(r), key > 0, tf.Variable(rewards[r].compute_value(), dtype=tf.float32))
 
         # Add named variables with negative key that where not considered above
         # note that each variable with a negative key at this point is already added in its positive key version
@@ -372,7 +372,7 @@ class DDC:
         index = self._var2node[var].pos if positive else self._var2node[var].neg
         assert index in self._label, "Reward label wrongly initialised"
         old_label = self._label[index]
-        self._label[index] = (old_label[0], old_label[0] * val)
+        self._label[index] = (old_label[0], val * old_label[0])
 
     def set_utility_label(self, var: str, eu: float):
         index = self._var2node[var].pos
