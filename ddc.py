@@ -446,8 +446,9 @@ class DDC:
                     total = self._semiring.times(total, cache[child])
                 cache[node] = total
 
-        ddc_eval = cache[self._root]
-        p, eu = self._semiring.normalise(ddc_eval, ddc_eval)
+        # ddc_eval = cache[self._root]
+        p, eu = cache[self._root]
+        assert any(p > 0.0), "All states have prob zero"
 
         return p, eu
 

@@ -33,18 +33,16 @@ class DDCModel(tf.keras.Model):
         for init_state in x["init_states"]:
             idx  = self._mc.interface_state_to_idx(init_state)
             init_states.append(idx)
-        x["init_states"] = tf.Tensor(init_states)
+        x["init_states"] = tf.convert_to_tensor(init_states)
 
     def call(self, x):
         states = x['init_states']
         trajectories = x['trajectories']
-        old_interface = tf.zeros(2 ** self._var_num, dtype=tf.float32)
         exp_rewards = []
 
-        # TODO: Set the initial state in the 'old_interface'
-
-        for el in trajectories:
+        for el, init_state_idx in zip(trajectories, states):
             exp_rewards_traj = []
+            old_interface = tf.one_hot(init_state_idx, 2 ** self._var_num, dtype=tf.float32)
             for act in el:
                 new_interface, exp_reward = self._ddc.filter(old_interface, act)
                 exp_rewards_traj.append(tf.reduce_sum(exp_reward))

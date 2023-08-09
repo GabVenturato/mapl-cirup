@@ -290,7 +290,7 @@ def main(argv):
 
     # get sample trajectories
     # db can't have decisions yet, because does not know how to sample.
-    dataset = create_dataset(db=db, nb_samples=2, trajectory_length=10)
+    dataset = create_dataset(db=db, nb_samples=10, trajectory_length=5)
     with open(dataset_trajectory_filepath, "wb") as f:
         pickle.dump(dataset, f)
 
