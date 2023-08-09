@@ -65,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument('ddn_file', type=str, help="Path to the DDN")
     parser.add_argument('train_file', type=str, help="Training data path")
     # parser.add_argument('valid_file', type=str, help="Validation data path")
-    parser.add_argument('model_dir', type=str, help="Model directory")
+    # parser.add_argument('model_dir', type=str, help="Model directory")
     parser.add_argument('epochs', type=int, help="Num. of training epochs")
     parser.add_argument('batch_size', type=int, help="Batch size")
     # parser.add_argument('seed', type=int, help="Seed number")
