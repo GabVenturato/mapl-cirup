@@ -412,3 +412,16 @@ class MaplCirup:
         View the dot representation of the transition circuit.
         """
         self._ddc.view_dot()
+
+    def interface_state_to_idx(self, interface_state: Dict[Term, bool]) -> int:
+        # _interface: Dict[
+        #     Term, List[Term]
+        interface_str_dict = {str(x): {str(z) for z in y}  for (x,y) in self._interface.items()}
+        interface_state_str = {str(var) if val else str(var.__invert__())  for (var, val) in interface_state.items()}
+        # find interface_str_dict key who matches in item
+        for (k,s) in interface_str_dict.items():
+            if s == interface_state_str:
+                return int(k[1:])
+
+        assert False, "should not happen..."
+

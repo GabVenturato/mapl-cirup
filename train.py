@@ -28,6 +28,13 @@ class DDCModel(tf.keras.Model):
         # self.w = tf.Variable(5.0)
         # self.b = tf.Variable(0.0)
 
+    def transform_x(self, x):
+        init_states = []
+        for init_state in x["init_states"]:
+            idx  = self._mc.interface_state_to_idx(init_state)
+            init_states.append(idx)
+        x["init_states"] = tf.Tensor(init_states)
+
     def call(self, x):
         states = x['init_states']
         trajectories = x['trajectories']
@@ -40,7 +47,6 @@ class DDCModel(tf.keras.Model):
             exp_rewards_traj = []
             for act in el:
                 new_interface, exp_reward = self._ddc.filter(old_interface, act)
-
                 exp_rewards_traj.append(tf.reduce_sum(exp_reward))
                 old_interface = new_interface
             exp_rewards.append(exp_rewards_traj)
@@ -50,6 +56,7 @@ class DDCModel(tf.keras.Model):
 
 def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
     keras_model = DDCModel(ddn, id2statevar, id2actvar)
+    keras_model.transform_x(x)
 
     # compile sets the training parameters
     keras_model.compile(
@@ -84,11 +91,11 @@ def prepare_dataset(dataset: List[LearnTrajectoryInstance]) -> Tuple[Dict[str, t
     id2statevar = {idx: var for (idx, var) in enumerate(dataset[0].init_state)}
     id2actvar = {idx: var for (idx, var) in enumerate(dataset[0].actions[0])}
 
-    state_list = []
-    for el in dataset:
-        state = [el.init_state[id2statevar[i]] for i in range(len(id2statevar))]
-        state_list.append(state)
-    tf_states = tf.convert_to_tensor(state_list)
+    # state_list = []
+    # for el in dataset:
+    #     state = [el.init_state[id2statevar[i]] for i in range(len(id2statevar))]
+    #     state_list.append(state)
+    # tf_states = tf.convert_to_tensor(state_list)
 
     action_list = []
     for el in dataset:
@@ -100,7 +107,7 @@ def prepare_dataset(dataset: List[LearnTrajectoryInstance]) -> Tuple[Dict[str, t
     tf_trajectories = tf.convert_to_tensor(action_list)
 
     x = {
-        'init_states' : tf_states,
+        'init_states' : [el.init_state for el in dataset],
         'trajectories' : tf_trajectories
     }
 
