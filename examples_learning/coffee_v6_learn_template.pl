@@ -28,7 +28,7 @@
 %% State variables
 decisions(move, delc, getu, buyc).
 state_variables(huc, hrc, wet, raining, umbrella, office).
-reward_variables(r0, r1, r3).
+reward_variables(r0, r1, r3, wet, office, getu, buyc).
 
 %% Model
 0.75::x(raining) :- raining.
@@ -82,6 +82,10 @@ r1 :- huc, \+wet.
 r3 :- \+huc, \+wet.
 
 % the following utility parameters are incorrect and should be learned.
-utility(r0, -8).
-utility(r1, 7).
-utility(r3, -5).
+utility(r0, -5).
+utility(r1, 2).
+utility(r3, 5).
+utility(wet, 7).
+utility(office, 0).
+utility(getu, -10).
+utility(buyc, 4).

@@ -28,7 +28,7 @@
 %% State variables
 decisions(move, delc, getu, buyc).
 state_variables(huc, hrc, wet, raining, umbrella, office).
-reward_variables(r0, r1, r3).
+reward_variables(r0, r1, r3, wet, office, getu, buyc).
 
 %% Model
 0.75::x(raining) :- raining.
