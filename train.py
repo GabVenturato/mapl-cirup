@@ -36,13 +36,14 @@ class DDCModel(tf.keras.Model):
 
         # TODO: Set the initial state in the 'old_interface'
 
-        i = 0
-        for act in trajectories:
-            new_interface, exp_reward = self._ddc.tf_filter(old_interface, act)  # TODO: Do we need the tf version?
+        for el in trajectories:
+            exp_rewards_traj = []
+            for act in el:
+                new_interface, exp_reward = self._ddc.tf_filter(old_interface, act)  # TODO: Do we need the tf version?
 
-            exp_rewards.append(tf.reduce_sum(exp_reward))
-            old_interface = new_interface
-            i += 1
+                exp_rewards_traj.append(tf.reduce_sum(exp_reward))
+                old_interface = new_interface
+            exp_rewards.append(exp_rewards_traj)
 
         return tf.convert_to_tensor(exp_rewards)
 
