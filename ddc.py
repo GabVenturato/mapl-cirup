@@ -3,12 +3,12 @@ Dynamic Decision Circuit (DDC)
 """
 import tensorflow as tf
 import numpy as np
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Tuple
 from enum import Enum
 from collections import namedtuple
 import graphviz
 
-from semiring import BestDecSemiring, Label, MEUSemiring
+from semiring import EUSemiring
 
 from problog.logic import Term, Constant, Not
 from problog.sdd_formula_explicit import SDDExplicit
@@ -25,7 +25,7 @@ class DDC:
     _false = -1
     _true = -1
     _decisions: Set[int] = set()
-    _semiring = MEUSemiring()
+    _semiring = EUSemiring()
     _id = 1
     _reuse_and_nodes_counter = 0
 
@@ -34,17 +34,19 @@ class DDC:
         self._children: Dict[int, List[int]] = dict()
         self._type: Dict[int, NodeType] = dict()
         self._var2node: Dict[str, VarIndex] = dict()
-        self._label: Dict[int, Label] = dict()
-        self._cache: Dict[int, Label] = dict()
+        self._label: Dict[int, Tuple[float,float]] = dict()
+        self._cache: Dict[int, Tuple[float,float]] = dict()
         self._state_vars: List[str] = []
         self._states: Dict[int, np.array] = dict()
         self._compact_and_nodes = False
         self._reuse_and_nodes = True
         self._ands: Dict[(int, int), int] = dict()
+        self._next_state_functor = ""
+        self.tf_filter = tf.function(self.filter)
 
     @classmethod
     def create_from(
-        cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant]
+        cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant], next_state_functor: str
     ):
         root: SddNode = sdd.get_root_inode()
 
@@ -71,12 +73,12 @@ class DDC:
         # Init labelling function
         if ddc._true != ddc._false:
             # True node has been initialised, this, set the label
-            ddc._label[ddc._true] = Label(1.0, 0.0, set())
+            ddc._label[ddc._true] = (1.0, 0.0)
 
         # set neutral prior weights
         for var in ddc._state_vars:
-            ddc._set_positive_label(var, Label(1.0, 0.0, set()))
-            ddc._set_negative_label(var, Label(1.0, 0.0, set()))
+            ddc._set_positive_label(var, (1.0, 0.0))
+            ddc._set_negative_label(var, (1.0, 0.0))
 
         # set all the other weights from the SDD
         weights: Dict[int, Term] = dict(sdd.get_weights())
@@ -86,34 +88,34 @@ class DDC:
             if isinstance(weights[key], bool) and weights[key] is True:
                 if key > 0:
                     ddc._set_positive_label(
-                        literal_id2name[index][0], Label(1.0, 0.0, set())
+                        literal_id2name[index][0], (1.0, 0.0)
                     )
                 else:
                     ddc._set_negative_label(
-                        literal_id2name[index][0], Label(1.0, 0.0, set())
+                        literal_id2name[index][0], (1.0, 0.0)
                     )
             elif isinstance(
                 weights[key], Constant
             ):  # probability (utilities at the beginning are all zero)
                 prob: float = weights[key].compute_value()
                 ddc._set_pn_labels(
-                    literal_id2name[index][0], key > 0, Label(prob, 0.0, set())
+                    literal_id2name[index][0], key > 0, (prob, 0.0)
                 )
             elif weights[key] == Term("?"):  # decision
                 node_id = ddc._var2node[literal_id2name[index][0]]
                 ddc._decisions.add(node_id.pos)
                 ddc._decisions.add(node_id.neg)
                 ddc._set_positive_label(
-                    literal_id2name[index][0], Label(1.0, 0.0, {node_id.pos})
+                    literal_id2name[index][0], (1.0, 0.0)
                 )
                 ddc._set_negative_label(
-                    literal_id2name[index][0], Label(1.0, 0.0, {node_id.neg})
+                    literal_id2name[index][0], (1.0, 0.0)
                 )
 
         # for all the other literals
         for node_id, node_type in ddc._type.items():
             if node_type == NodeType.LITERAL and node_id not in ddc._label:
-                ddc._label[node_id] = Label(1.0, 0.0, set())
+                ddc._label[node_id] = (1.0, 0.0)
 
         # init reward parameters
         for r in rewards:
@@ -145,23 +147,23 @@ class DDC:
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
         # define is_utility
-        ddc._node2util = dict()
-        ddc._is_utility: Dict[int,bool] = dict()
+        ddc._node2interface = dict()
+        ddc._is_interface: Dict[int,bool] = dict()
         for node in ddc._children.keys():
-            ddc._is_utility[node] = False
+            ddc._is_interface[node] = False
             for i in range(0, 2**len(ddc._state_vars)):
-                if ddc._var2node['u' + str(i)].pos == node:
-                    ddc._is_utility[node] = True
-                    ddc._node2util[node] = i
+                if ddc._var2node['i' + str(i)].pos == node:
+                    ddc._is_interface[node] = True
+                    ddc._node2interface[node] = i
                     break
-        assert (len(ddc._node2util) == 2**len(ddc._state_vars)), "node2util has wrong length"
+        assert (len(ddc._node2interface) == 2**len(ddc._state_vars)), "node2interface has wrong length"
 
         # Create vectorised evidence for state variables
         var_num: int = len(ddc._state_vars)
         rep: int = 0
         for var in ddc._state_vars:
             var_num -= 1
-            index = ddc._var2node[var]
+            index = ddc._var2node[f'{next_state_functor}({var})']
             ddc._states[index.pos] = tf.convert_to_tensor(
                 np.tile(np.repeat(np.array([1, 0]), 2**rep), 2**var_num),
                 dtype=tf.float32
@@ -171,8 +173,6 @@ class DDC:
                 dtype=tf.float32
             )
             rep += 1
-
-        ddc.max_eu_gpu = tf.function(ddc.max_eu)
 
         return ddc
 
@@ -319,12 +319,7 @@ class DDC:
                 dot_node = f'{node} [shape=rectangle,label="True"];'
             elif self._type[node] == NodeType.LITERAL:
                 var_name = ", ".join(self._node_to_var(node))
-                dec = self._label[node].dec
-                dec_label = "{}"
-                if len(dec) > 0:
-                    decs = [x for d in dec for x in self._node_to_var(d)]
-                    dec_label = "{" + ", ".join(decs) + "}"
-                label = f"({round(self._label[node].prob, 2)}, {self._label[node].eu}, {dec_label})"
+                label = f"({round(self._label[node][0], 2)}, {self._label[node][1]})"
                 dot_node = f'{node} [shape=rectangle,label="{var_name} : {label}"];'
             elif self._type[node] == NodeType.AND or self._type[node] == NodeType.OR:
                 var_name = "+" if self._type[node] == NodeType.OR else "×"
@@ -347,78 +342,78 @@ class DDC:
                 literal.append("¬" + var)
         return literal
 
-    def _set_positive_label(self, var: str, label: Label):
+    def _set_positive_label(self, var: str, label: Tuple[float,float]):
         index = self._var2node[var]
         if index.pos != self._false:
             self._label[index.pos] = label
 
-    def _set_negative_label(self, var: str, label: Label):
+    def _set_negative_label(self, var: str, label: Tuple[float,float]):
         index = self._var2node[var]
         if index.neg != self._false:
             self._label[index.neg] = label
 
-    def _set_pn_labels(self, var: str, positive: bool, label: Label):
+    def _set_pn_labels(self, var: str, positive: bool, label: Tuple[float,float]):
         if positive:
             self._set_positive_label(var, label)
             if self._var2node[var].neg not in self._label:
                 # If the complement is not in the labelling function already, insert it
                 self._set_negative_label(
-                    var, Label(1 - label.prob, label.eu, label.dec)
+                    var, (1 - label[0], label[1])
                 )
         else:
             self._set_negative_label(var, label)
             if self._var2node[var].pos not in self._label:
                 # If the complement is not in the labelling function already, insert it
                 self._set_positive_label(
-                    var, Label(1 - label.prob, label.eu, label.dec)
+                    var, (1 - label[0], label[1])
                 )
 
     def _init_reward_label(self, var: str, positive: bool, val: float):
         index = self._var2node[var].pos if positive else self._var2node[var].neg
         assert index in self._label, "Reward label wrongly initialised"
         old_label = self._label[index]
-        self._label[index] = Label(old_label.prob, old_label.prob * val, old_label.dec)
+        self._label[index] = (old_label[0], old_label[0] * val)
 
     def set_utility_label(self, var: str, eu: float):
         index = self._var2node[var].pos
         if index != self._false:
             assert index in self._label, "Utility label not existing"
             old_label = self._label[index]
-            self._label[index] = Label(old_label.prob, eu, old_label.dec)
+            self._label[index] = (old_label[0], eu)
 
     def get_utility_label(self, var: str) -> float:
         index = self._var2node[var].pos
         if index != self._false:
-            return self._label[self._var2node[var].pos].eu
+            return self._label[self._var2node[var].pos][1]
         else:
             return 0.0
 
     def size(self) -> int:
         return len(self._children)
 
-    def _evidence_to_label(self, var: str, value: bool) -> (int, Label):
-        # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
-        node_index = self._var2node[var]
-        node_id = node_index.neg if value else node_index.pos
-        label = self._label[node_id]
-        return node_id, Label(0.0, 0.0, label.dec)  # eu = p * util
+    # def _evidence_to_label(self, var: str, value: bool) -> (int, Tuple[float,float]):
+    #     # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
+    #     node_index = self._var2node[var]
+    #     node_id = node_index.neg if value else node_index.pos
+    #     # label = self._label[node_id]
+    #     return node_id, (0.0, 0.0)  # eu = p * util
 
-    def max_eu(self, new_utility: tf.Tensor) -> tf.Tensor:
+    def filter(self, new_interface_prob: tf.Tensor, action: str) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
                 cache[node] = self._semiring.one()
             elif self._type[node] == NodeType.LITERAL:
-                (p, eu, m) = self._label[node]
-                if self._is_utility[node]:
-                    i = self._node2util[node]
-                    eu = new_utility[i]
+                (p, eu) = self._label[node]
+                if self._is_interface[node]:
+                    i = self._node2interface[node]
+                    p = new_interface_prob[i]
                 if node in self._states:
                     cache[node] = self._semiring.value(
-                        Label(self._states[node], eu * self._states[node], m)
+                        (p * self._states[node], eu)
                     )
                 else:
-                    cache[node] = (p, eu, m)
+                    cache[node] = (p, eu)
             elif self._type[node] == NodeType.OR:
                 assert (
                     len(self._children[node]) > 0
@@ -437,60 +432,60 @@ class DDC:
                 cache[node] = total
 
         ddc_eval = cache[self._root]
-        _, eu, _ = self._semiring.normalise(ddc_eval, ddc_eval)
+        p, eu = self._semiring.normalise(ddc_eval, ddc_eval)
 
-        return eu
+        return p, eu
 
-    def best_dec(self, state: Dict[str, bool] = None) -> Label:
-        return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
+    # def best_dec(self, state: Dict[str, bool] = None) -> Label:
+    #     return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
 
-    def _evaluate_root_iter(
-        self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None
-    ) -> Label:
-        self._semiring = semiring
-
-        evidence_label: Dict[int, Label] = dict()
-        if evidence is not None:
-            for var, value in evidence.items():
-                node, label = self._evidence_to_label(var, value)
-                evidence_label[node] = label
-
-        self._cache = dict()
-        for node, children in self._children.items():
-            if self._type[node] == NodeType.TRUE:
-                self._cache[node] = self._semiring.one()
-            elif self._type[node] == NodeType.LITERAL:
-                if evidence_label is not None and node in evidence_label:
-                    self._cache[node] = evidence_label[node]
-                else:
-                    self._cache[node] = self._label[node]
-            elif self._type[node] == NodeType.OR:
-                assert (
-                    len(self._children[node]) > 0
-                ), "There is an OR node with no children"
-                total = self._cache[children[0]]
-                for child in children[1:]:
-                    total = self._semiring.plus(total, self._cache[child])
-                self._cache[node] = total
-            elif self._type[node] == NodeType.AND:
-                assert (
-                    len(self._children[node]) > 0
-                ), "There is an AND node with no children"
-                total = self._cache[children[0]]
-                for child in children[1:]:
-                    total = self._semiring.times(total, self._cache[child])
-                self._cache[node] = total
-
-        ddc_eval = self._cache[self._root]
-        (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
-
-        # turn decision ids into variable names (i.e. human-readable)
-        dec_vars: Set[str] = set()
-        for d in dec:
-            for d_var in self._node_to_var(d):
-                dec_vars.add(d_var)
-
-        return Label(prob, eu, dec_vars)
+    # def _evaluate_root_iter(
+    #     self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None
+    # ) -> Label:
+    #     self._semiring = semiring
+    #
+    #     evidence_label: Dict[int, Label] = dict()
+    #     if evidence is not None:
+    #         for var, value in evidence.items():
+    #             node, label = self._evidence_to_label(var, value)
+    #             evidence_label[node] = label
+    #
+    #     self._cache = dict()
+    #     for node, children in self._children.items():
+    #         if self._type[node] == NodeType.TRUE:
+    #             self._cache[node] = self._semiring.one()
+    #         elif self._type[node] == NodeType.LITERAL:
+    #             if evidence_label is not None and node in evidence_label:
+    #                 self._cache[node] = evidence_label[node]
+    #             else:
+    #                 self._cache[node] = self._label[node]
+    #         elif self._type[node] == NodeType.OR:
+    #             assert (
+    #                 len(self._children[node]) > 0
+    #             ), "There is an OR node with no children"
+    #             total = self._cache[children[0]]
+    #             for child in children[1:]:
+    #                 total = self._semiring.plus(total, self._cache[child])
+    #             self._cache[node] = total
+    #         elif self._type[node] == NodeType.AND:
+    #             assert (
+    #                 len(self._children[node]) > 0
+    #             ), "There is an AND node with no children"
+    #             total = self._cache[children[0]]
+    #             for child in children[1:]:
+    #                 total = self._semiring.times(total, self._cache[child])
+    #             self._cache[node] = total
+    #
+    #     ddc_eval = self._cache[self._root]
+    #     (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
+    #
+    #     # turn decision ids into variable names (i.e. human-readable)
+    #     dec_vars: Set[str] = set()
+    #     for d in dec:
+    #         for d_var in self._node_to_var(d):
+    #             dec_vars.add(d_var)
+    #
+    #     return Label(prob, eu, dec_vars)
 
     # def evaluate_root(self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None) -> Label:
     #     self._semiring = semiring

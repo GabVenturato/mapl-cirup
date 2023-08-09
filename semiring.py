@@ -7,8 +7,39 @@ from collections import namedtuple
 import numpy as np
 import tensorflow as tf
 
-Label = namedtuple('Label', 'prob, eu, dec')
+Label = namedtuple('Label', 'prob, eu')
 
+class EUSemiring:
+    def __init__(self):
+        self.val_zero = (0.0, 0.0)
+        self.val_one = (1.0, 0.0)
+
+    def one(self):
+        return self.val_one
+
+    def zero(self):
+        return self.val_zero
+
+    def plus(self, a, b):
+        p_a, eu_a = a
+        p_b, eu_b = b
+        return p_a + p_b, eu_a + eu_b
+
+    @staticmethod
+    def times(a, b):
+        p_a, eu_a = a
+        p_b, eu_b = b
+        return p_a * p_b, p_a * eu_b + p_b * eu_a
+
+    @staticmethod
+    def value(a):
+        return a.prob, a.eu
+
+    @staticmethod
+    def normalise(a, z):
+        p_a, eu_a = a
+        p_z, _ = z
+        return p_a / p_z, eu_a / p_z
 
 class MEUSemiring:
     def __init__(self):

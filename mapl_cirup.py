@@ -63,7 +63,7 @@ class MaplCirup:
         self._state_vars = MaplCirup._get_state_vars(prog)
         self._add_state_priors(prog)
         self._add_interface_parameters(prog)
-        self._add_utility_parameters(prog)
+        # self._add_utility_parameters(prog)
         grounded_prog = self._grounding(prog)
 
         print("Compiling...")
@@ -78,7 +78,7 @@ class MaplCirup:
             endtime_minimization = time.time()
             self._minimize_time = endtime_minimization - starttime_minimization
 
-        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards)
+        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards, self._next_state_functor)
         endtime_compilation = time.time()
         self._compile_time = endtime_compilation - starttime_compilation
         print("Compilation done! (circuit size: %s)" % self.size())
@@ -227,7 +227,7 @@ class MaplCirup:
         :param parsed_prog: Parsed program.
         :return: Grounded program.
         """
-        queries = self._decisions + list(self._rewards) + list(self._utilities.keys())
+        queries = self._decisions + list(self._rewards) + list(self._interface.keys())
         queries += list(
             map(lambda v: Term(self._next_state_functor, v), self._state_vars)
         )
@@ -302,57 +302,54 @@ class MaplCirup:
         :param terms: List of terms to be concatenated.
         :return: The big and concatenation. If only one term is in the list, it returns the term itself.
         """
+        terms_copy = copy.deepcopy(terms)
         if len(terms) == 1:
-            return terms[0]
+            return terms_copy[0]
         else:
-            return And(terms.pop(), MaplCirup.big_and(terms))
+            return And(terms_copy.pop(), MaplCirup.big_and(terms_copy))
 
-    def value_iteration(
-        self, discount: float = None, error: float = None, horizon: int = None
-    ) -> None:
-        if discount is not None:
-            self._discount = discount
 
-        if error is not None:
-            self._error = error
+    def get_ddc(self) -> DDC:
+        return self._ddc
 
-        if horizon is not None:
-            self._horizon = horizon
+    def var_num(self) -> int:
+        return len(self._state_vars)
 
-        old_utility = tf.zeros(2 ** len(self._state_vars), dtype=tf.float32)
-
-        starttime_tf_graph = time.time()
-        while True:
-            if self._discount == 1 or horizon is not None:  # loop for horizon length
-                if self._iterations_count >= self._horizon:
-                    break
-
-            if self._iterations_count == 1:
-                # I have created the graph and can start timing VI
-                endtime_tf_graph = time.time()
-                self._tf_graph_time = endtime_tf_graph - starttime_tf_graph
-                starttime_vi = time.time()
-
-            new_utility = self._ddc.max_eu_gpu(self._discount * old_utility)
-
-            delta = tf.norm(new_utility-old_utility, ord=np.inf)
-            old_utility = new_utility
-            self._iterations_count += 1
-
-            # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
-
-            if self._discount < 1:
-                if horizon is not None:
-                    # if the horizon is set, loop for horizon length (with discount)
-                    if self._iterations_count >= self._horizon:
-                        break
-                else:
-                    # loop until convergence
-                    if delta <= self._error:  # * (1-self._discount) / self._discount:
-                        break
-
-        endtime_vi = time.time()
-        self._vi_time = endtime_vi - starttime_vi
+    # def expected_reward(self, state: List[str], actions: List[str]) -> None:
+    #     old_utility = tf.zeros(2 ** len(self._state_vars), dtype=tf.float32)
+    #
+    #     starttime_tf_graph = time.time()
+    #     while True:
+    #         if self._discount == 1 or horizon is not None:  # loop for horizon length
+    #             if self._iterations_count >= self._horizon:
+    #                 break
+    #
+    #         if self._iterations_count == 1:
+    #             # I have created the graph and can start timing VI
+    #             endtime_tf_graph = time.time()
+    #             self._tf_graph_time = endtime_tf_graph - starttime_tf_graph
+    #             starttime_vi = time.time()
+    #
+    #         new_utility = self._ddc.max_eu_gpu(self._discount * old_utility)
+    #
+    #         delta = tf.norm(new_utility-old_utility, ord=np.inf)
+    #         old_utility = new_utility
+    #         self._iterations_count += 1
+    #
+    #         # print('Iteration ' + str(self._iterations_count) + ' with delta: ' + str(delta))
+    #
+    #         if self._discount < 1:
+    #             if horizon is not None:
+    #                 # if the horizon is set, loop for horizon length (with discount)
+    #                 if self._iterations_count >= self._horizon:
+    #                     break
+    #             else:
+    #                 # loop until convergence
+    #                 if delta <= self._error:  # * (1-self._discount) / self._discount:
+    #                     break
+    #
+    #     endtime_vi = time.time()
+    #     self._vi_time = endtime_vi - starttime_vi
 
     def print_explicit_policy(self) -> None:
         print("\nPOLICY FUNCTION:\n")
