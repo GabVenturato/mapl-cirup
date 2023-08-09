@@ -43,15 +43,18 @@ class DDC:
         self._ands: Dict[(int, int), int] = dict()
         self._next_state_functor = ""
         self.tf_filter = tf.function(self.filter)
+        self._id2actvar: Dict[int, str] = dict()
 
     @classmethod
     def create_from(
-        cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant], next_state_functor: str
+        cls, sdd: SDDExplicit, state_vars: List[Term], rewards: Dict[Term, Constant], next_state_functor: str,
+        id2actvar: Dict[int, str]
     ):
         root: SddNode = sdd.get_root_inode()
 
         ddc = cls()
         ddc._state_vars = [str(x) for x in state_vars]
+        ddc._id2actvar = id2actvar
 
         # Retrieve variable names
         literal_id2name: Dict[int, List[str]] = dict()
@@ -398,12 +401,14 @@ class DDC:
     #     # label = self._label[node_id]
     #     return node_id, (0.0, 0.0)  # eu = p * util
 
-    def filter(self, new_interface_prob: tf.Tensor, actions: Dict[str, bool]) -> Tuple[tf.Tensor, tf.Tensor]:
+    def filter(self, new_interface_prob: tf.Tensor, actions: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
         act_node_ids = []
+        i = 0
         for act in actions:
-            if actions[act]:
-                act_node_ids.append(self._var2node[act].pos)
+            if act:
+                act_node_ids.append(self._var2node[self._id2actvar[i]].pos)
+            i += 1
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
                 cache[node] = self._semiring.one()

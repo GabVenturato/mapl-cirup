@@ -46,7 +46,7 @@ class MaplCirup:
     _minimisation_on = False  # Activate the SDD minimisation
     _minimize_time = 0  # Default minimisation time
 
-    def __init__(self, filename, minimisation=False):
+    def __init__(self, filename, id2actvar, minimisation=False):
         """
         DDC initialization. The overall steps are the following:
             1. Parse the two input model
@@ -78,7 +78,7 @@ class MaplCirup:
             endtime_minimization = time.time()
             self._minimize_time = endtime_minimization - starttime_minimization
 
-        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards, self._next_state_functor)
+        self._ddc: DDC = DDC.create_from(sdd, self._state_vars, self._rewards, self._next_state_functor, id2actvar)
         endtime_compilation = time.time()
         self._compile_time = endtime_compilation - starttime_compilation
         print("Compilation done! (circuit size: %s)" % self.size())

@@ -15,7 +15,7 @@ class DDCModel(tf.keras.Model):
     def __init__(self, ddn, id2statevar, id2actvar, **kwargs):
         super().__init__(**kwargs)
 
-        self._mc = mapl_cirup.MaplCirup(ddn)
+        self._mc = mapl_cirup.MaplCirup(ddn, id2actvar)
         self._ddc = self._mc.get_ddc()
         self._var_num = self._mc.var_num()
         self._id2statevar = id2statevar
@@ -38,12 +38,7 @@ class DDCModel(tf.keras.Model):
 
         i = 0
         for act in trajectories:
-            j = 0
-            act_dict = dict()
-            for val in act:
-                act_dict[self._id2actvar[j]] = val
-                j += 1
-            new_interface, exp_reward = self._ddc.tf_filter(old_interface, act_dict)  # TODO: Do we need the tf version?
+            new_interface, exp_reward = self._ddc.tf_filter(old_interface, act)  # TODO: Do we need the tf version?
 
             exp_rewards.append(tf.reduce_sum(exp_reward))
             old_interface = new_interface
@@ -59,7 +54,7 @@ def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
     keras_model.compile(
         # By default, fit() uses tf.function().  You can
         # turn that off for debugging, but it is on now.
-        run_eagerly=False,
+        run_eagerly=True,
 
         # Using a built-in optimizer, configuring as an object
         optimizer=tf.keras.optimizers.SGD(learning_rate=lr),
