@@ -1,7 +1,14 @@
+from typing import List, Tuple, Dict
+
 import tensorflow as tf
 import pickle
 
+from problog.logic import Term
+
 import mapl_cirup
+from learning_util import LearnTrajectoryInstance
+
+
 # from typing import List
 
 class DDCModel(tf.keras.Model):
@@ -57,6 +64,33 @@ def train(ddn, x, y, lr, epochs, batch_size):
     # print(x.shape[0])
     keras_model.fit(x, y, epochs=epochs, batch_size=batch_size)
 
+
+def prepare_dataset(dataset: List[LearnTrajectoryInstance]) -> Tuple[List[Tuple[Dict[Term, bool], Dict[Term,bool]]], List[List[int]]]:
+    """
+    Split the given trajectory learning dataset into x,y with
+    x a list of initial states and consecutive actions,
+    and y a list with each entry a list of consecutive observed rewards.
+    :param dataset:
+    :return: x,y as described above
+    """
+    x = [(inst.init_state, inst.actions) for inst in dataset]
+    y = [inst.rewards for inst in dataset]
+    return x, y
+
+
+def perform_learning(args):
+    with open(args.train_file, 'rb') as f:
+        train_dataset = pickle.load(f)
+
+    # prepare dataset for training
+    # x = (initial state, list of actions)
+    # y = list of observed rewards corresponding to the list of states
+    x, y = prepare_dataset(train_dataset)
+    train(args.ddn, x, y, args.lr, args.epochs, args.batch_size)
+
+    #TODO: evaluation
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -76,9 +110,5 @@ if __name__ == '__main__':
     # parser.add_argument('--weight_decay', type=float, default=defaults.weight_decay,
     #                     help="ADAM's weight decay parameter")
 
-    args = parser.parse_args()
-
-    with open(args.train_file, 'rb') as f:
-        train_dataset = pickle.load(f)
-
-    train(args.ddn, train_dataset, labels, args.lr, args.epochs, args.batch_size)
+    argv = parser.parse_args()
+    perform_learning(argv)
