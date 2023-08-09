@@ -128,7 +128,7 @@ class DDC:
             if key is None:  # if it is None it means r is not in the circuit
                 continue
 
-            ddc._init_reward_label(str(r), key > 0, rewards[r].compute_value())
+            ddc._init_reward_label(str(r), key > 0, tf.Variable(rewards[r].compute_value()))
 
         # Add named variables with negative key that where not considered above
         # note that each variable with a negative key at this point is already added in its positive key version
@@ -146,7 +146,7 @@ class DDC:
                 ), "Query val with positive index set to false"
                 ddc._var2node[var_name] = VarIndex(ddc_index.neg, ddc_index.pos)
 
-        # define is_utility
+        # define is_interface
         ddc._node2interface = dict()
         ddc._is_interface: Dict[int,bool] = dict()
         for node in ddc._children.keys():
@@ -368,7 +368,7 @@ class DDC:
                     var, (1 - label[0], label[1])
                 )
 
-    def _init_reward_label(self, var: str, positive: bool, val: float):
+    def _init_reward_label(self, var: str, positive: bool, val: tf.Variable):
         index = self._var2node[var].pos if positive else self._var2node[var].neg
         assert index in self._label, "Reward label wrongly initialised"
         old_label = self._label[index]
@@ -398,14 +398,23 @@ class DDC:
     #     # label = self._label[node_id]
     #     return node_id, (0.0, 0.0)  # eu = p * util
 
-    def filter(self, new_interface_prob: tf.Tensor, action: str) -> Tuple[tf.Tensor, tf.Tensor]:
+    def filter(self, new_interface_prob: tf.Tensor, actions: Dict[str, bool]) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
+        act_node_ids = []
+        for act in actions:
+            if actions[act]:
+                act_node_ids.append(self._var2node[act].pos)
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
                 cache[node] = self._semiring.one()
             elif self._type[node] == NodeType.LITERAL:
                 (p, eu) = self._label[node]
-                if self._is_interface[node]:
+                if node in self._decisions:
+                    if node in act_node_ids:
+                        p = 1.0
+                    else:
+                        p, eu = 0.0, 0.0
+                elif self._is_interface[node]:
                     i = self._node2interface[node]
                     p = new_interface_prob[i]
                 if node in self._states:
