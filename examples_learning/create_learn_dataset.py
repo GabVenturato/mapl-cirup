@@ -53,10 +53,11 @@ def _compute_and_set_rewards(db: ClauseDB, dataset):
     reward_dict = get_reward_dict(db)
     decisions: List[Set[Term]] = get_decision_terms(db)
 
-    def _hardcoded_reward_func(state, action):
+    def _hardcoded_reward_func(state, actions):
         # r0 :- huc, wet.
         # r1 :- huc, \+wet.
         # r3 :- \+huc, \+wet.
+        # wet, office, getu, buyc
         reward = 0
         is_r0 = state[Term("huc")] and state[Term("wet")]
         is_r1 = state[Term("huc")] and not state[Term("wet")]
@@ -64,6 +65,10 @@ def _compute_and_set_rewards(db: ClauseDB, dataset):
         reward += is_r0 * reward_dict[Term("r0")]
         reward += is_r1 * reward_dict[Term("r1")]
         reward += is_r3 * reward_dict[Term("r3")]
+        reward += state[Term("wet")] * reward_dict[Term("wet")]
+        reward += state[Term("office")] * reward_dict[Term("office")]
+        reward += actions[Term("getu")] * reward_dict[Term("getu")]
+        reward += actions[Term("buyc")] * reward_dict[Term("buyc")]
         return reward
 
     for inst in dataset:
@@ -124,9 +129,9 @@ def _compute_and_set_rewards(db: ClauseDB, dataset):
 #             inst.rewards.append(state_reward)
 
 
-def create_dataset(db: ClauseDB, nb_samples: int = 5, trajectory_length: int = 3, seed=None):
+def create_dataset(db: ClauseDB, nb_samples: int = 5, trajectory_length: int = 3):
     # create sampled trajectories with actions
-    dataset = create_samples(db, nb_samples, trajectory_length, init_seed=seed)
+    dataset = create_samples(db, nb_samples, trajectory_length)
 
     # set rewards
     _compute_and_set_rewards(db, dataset)
@@ -262,6 +267,7 @@ def main(argv):
     model = PrologFile(model_filepath)
 
     dataset_trajectory_filepath = f"./dataset_trajectories_seed{args.seed}.pickle"
+    random.seed(a=args.seed)
 
     # Prepare engine
     engine = DefaultEngine()
@@ -271,8 +277,12 @@ def main(argv):
     #TODO: temp hardcoded solution
     reward_dict = {
         Term("r0"): Constant(3),
-        Term("r1"): Constant(5),
+        Term("r1"): Constant(10),
         Term("r3"): Constant(-2),
+        Term("wet"): Constant(-3),
+        Term("office"): Constant(-1),
+        Term("getu"): Constant(-1),
+        Term("buyc"): Constant(-5),
     }
     # Add true reward function
     for reward_term, reward in reward_dict.items():
@@ -280,7 +290,7 @@ def main(argv):
 
     # get sample trajectories
     # db can't have decisions yet, because does not know how to sample.
-    dataset = create_dataset(db=db, nb_samples=2, trajectory_length=5, seed=None)
+    dataset = create_dataset(db=db, nb_samples=2, trajectory_length=10)
     with open(dataset_trajectory_filepath, "wb") as f:
         pickle.dump(dataset, f)
 
