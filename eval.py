@@ -45,8 +45,27 @@ def create_param_dict(params: List[float], params_names: List[Term]):
     return {pname: p for (pname, p) in zip(params_names, params)}
 
 
-if __name__ == '__main__':
+def get_rel_errors(learned_values, true_values: List[float]) -> List[List[float]]:
+    """
+    Get relative errors of the given learned values and true values.
+    :param learned_values: A 2D list of learned values. Might also work with a 1D array.
+    :param true_values: A 1D list of true values, with the ordering of each parameter matching
+    the ordering in learned_values.
+    :return: A 2D list of learned values where each value is now the relative error with respect
+    to the true parameter value in the same index.
+    """
+    learned_values = np.array(learned_values)
+    true_values = np.array(true_values)
+    error_values = learned_values - true_values
+    return error_values / true_values
 
+
+def param_dict_to_list(param_dict: Dict[Term, float], new_order: List[Term]):
+    """ transform param_dict into a list of values, ordered by the names given in new_order. """
+    return [param_dict[pname] for pname in new_order]
+
+
+if __name__ == '__main__':
     # extract results
     with open("examples_learning/log.pickle", 'rb') as f:
         results = pickle.load(f)
