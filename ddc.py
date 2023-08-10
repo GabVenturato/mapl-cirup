@@ -29,6 +29,7 @@ class DDC:
     _id = 1
     _reuse_and_nodes_counter = 0
     _parameters = []
+    _parameters_names = []
 
     def __init__(self):
         self._root: int = self._false
@@ -137,6 +138,7 @@ class DDC:
             new_param = tf.Variable(rewards[r].compute_value(), dtype=tf.float32)
             ddc._init_reward_label(str(r), key > 0, new_param)
             ddc._parameters.append(new_param)
+            ddc._parameters_names.append(str(r))
 
         # Add named variables with negative key that where not considered above
         # note that each variable with a negative key at this point is already added in its positive key version
@@ -401,6 +403,9 @@ class DDC:
 
     def get_param(self) -> List[tf.Variable]:
         return self._parameters
+
+    def get_param_names(self) -> List[str]:
+        return self._parameters_names
 
     def filter(self, new_interface_prob: tf.Tensor, actions: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()

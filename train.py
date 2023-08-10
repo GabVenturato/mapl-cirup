@@ -2,6 +2,7 @@ from typing import List, Tuple, Dict
 
 import tensorflow as tf
 import pickle
+import os
 
 import mapl_cirup
 from learning_util import LearnTrajectoryInstance
@@ -17,6 +18,7 @@ class DDCModel(tf.keras.Model):
         self._id2actvar = id2actvar
 
         self.utility_param: List[tf.Variable] = self._ddc.get_param()
+        self.utility_param_names: List[str] = self._ddc.get_param_names()
 
     def transform_x(self, x):
         init_states = []
@@ -95,9 +97,30 @@ def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
     #     print(f'Grad {grad}')
 
     # # print(x.shape[0])
-    print(keras_model.variables)
-    keras_model.fit(x, y, epochs=epochs, batch_size=batch_size)
-    print(keras_model.variables)
+
+    class ParamsHistory(tf.keras.callbacks.Callback):
+        def on_train_begin(self, logs={}):
+            self.params = [[tf.get_static_value(v.value()) for v in keras_model.trainable_variables]]
+            self.losses = []
+
+        def on_epoch_end(self, epoch, logs={}):
+            # print(f'Variables: {keras_model.trainable_variables}')
+            # print(f'Metrics: {keras_model.get_metrics_result()}')
+            self.params.append([tf.get_static_value(v.value()) for v in keras_model.trainable_variables])
+            self.losses.append(logs.get('loss'))
+
+    history = ParamsHistory()
+    keras_model.fit(x, y, epochs=epochs, batch_size=batch_size, callbacks=[history])
+
+    history.losses.append(-1)
+
+    results = (history.params, history.losses, keras_model.utility_param_names)
+
+    # Log results
+    log_file = os.path.join(os.path.dirname(ddn), "log.pickle")
+    with open(log_file, "wb") as f:
+        pickle.dump(results, f)
+
 
 # @tf.function
 # def custom_loss(y_true, y_pred):
