@@ -51,10 +51,10 @@ class DDCModel(tf.keras.Model):
 
         return tf.convert_to_tensor(exp_rewards)
 
-
 def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
     keras_model = DDCModel(ddn, id2statevar, id2actvar)
     keras_model.transform_x(x)
+    print(f'Trainable variables: {keras_model.trainable_variables}')
 
     # compile sets the training parameters
     keras_model.compile(

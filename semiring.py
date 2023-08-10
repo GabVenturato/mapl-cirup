@@ -23,14 +23,14 @@ class EUSemiring:
     def plus(self, a, b):
         p_a, eu_a = a
         p_b, eu_b = b
-        print("(%s, %s) + (%s, %s) = (%s, %s)" % (p_a, eu_a, p_b, eu_b, p_a + p_b, eu_a + eu_b))
+        # print("(%s, %s) + (%s, %s) = (%s, %s)" % (p_a, eu_a, p_b, eu_b, p_a + p_b, eu_a + eu_b))
         return p_a + p_b, eu_a + eu_b
 
     @staticmethod
     def times(a, b):
         p_a, eu_a = a
         p_b, eu_b = b
-        print("(%s, %s) * (%s, %s) = (%s, %s)" % (p_a, eu_a, p_b, eu_b, p_a * p_b, p_a * eu_b + p_b * eu_a))
+        # print("(%s, %s) * (%s, %s) = (%s, %s)" % (p_a, eu_a, p_b, eu_b, p_a * p_b, p_a * eu_b + p_b * eu_a))
         return p_a * p_b, p_a * eu_b + p_b * eu_a
 
     @staticmethod

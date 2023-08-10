@@ -405,20 +405,23 @@ class DDC:
 
     def filter(self, new_interface_prob: tf.Tensor, actions: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
-        act_node_ids = []
+        act_node_neg_ids = []
         for i, act in enumerate(actions):
+            actvar = self._id2actvar[i]
             if act:
-                actvar = self._id2actvar[i]
-                act_node_ids.append(self._var2node[actvar].pos)
+                act_node_neg_ids.append(self._var2node[actvar].neg)
+            else:
+                act_node_neg_ids.append(self._var2node[actvar].pos)
         for node, children in self._children.items():
             if self._type[node] == NodeType.TRUE:
                 cache[node] = self._semiring.one()
             elif self._type[node] == NodeType.LITERAL:
                 (p, eu) = self._label[node]
                 if node in self._decisions:
-                    if node in act_node_ids:
-                        p = 1.0
-                    else:
+                    # if node in act_node_pos_ids:
+                    #     p = 1.0
+                    # else:
+                    if node in act_node_neg_ids:
                         p, eu = 0.0, 0.0
                 elif self._is_interface[node]:
                     i = self._node2interface[node]
