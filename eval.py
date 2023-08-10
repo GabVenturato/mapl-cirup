@@ -8,6 +8,7 @@ from problog.logic import Term
 from problog.program import PrologFile
 from problog.engine import DefaultEngine
 
+import matplotlib.pyplot as plt
 
 def get_reward_params_from_db(db: ClauseDB) -> Dict[Term, int]:
     """
@@ -64,6 +65,28 @@ def param_dict_to_list(param_dict: Dict[Term, float], new_order: List[Term]):
     """ transform param_dict into a list of values, ordered by the names given in new_order. """
     return [param_dict[pname] for pname in new_order]
 
+
+def plot_loss_and_rel_error(loss, avg_rel_errors):
+    assert len(loss) == len(avg_rel_errors)
+    iterations = range(len(loss))
+
+    fig, ax1 = plt.subplots()
+
+    color = 'tab:blue'
+    ax1.set_xlabel('Iterations')
+    ax1.set_ylabel('Loss', color=color)
+    ax1.plot(iterations, loss, color=color)
+    # ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()
+    color = 'tab:green'
+    ax2.set_ylabel('Average relative errors (%', color=color)
+    ax2.plot(iterations, avg_rel_errors, color=color, linestyle='dashed')
+    # ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()
+    plt.savefig("loss_avg_rel_error.pdf", format="pdf", bbox_inches='tight')
+    plt.show()
 
 if __name__ == '__main__':
     # extract results
