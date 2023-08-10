@@ -86,6 +86,6 @@ utility(r0, -5).
 utility(r1, 2).
 utility(r3, 5).
 utility(wet, 7).
-utility(office, 0).
+utility(office, 1).
 utility(getu, -10).
 utility(buyc, 4).

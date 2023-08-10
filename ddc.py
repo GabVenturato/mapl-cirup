@@ -28,6 +28,7 @@ class DDC:
     _semiring = EUSemiring()
     _id = 1
     _reuse_and_nodes_counter = 0
+    _parameters = []
 
     def __init__(self):
         self._root: int = self._false
@@ -133,7 +134,9 @@ class DDC:
             if key is None:  # if it is None it means r is not in the circuit
                 continue
 
-            ddc._init_reward_label(str(r), key > 0, tf.Variable(rewards[r].compute_value(), dtype=tf.float32))
+            new_param = tf.Variable(rewards[r].compute_value(), dtype=tf.float32)
+            ddc._init_reward_label(str(r), key > 0, new_param)
+            ddc._parameters.append(new_param)
 
         # Add named variables with negative key that where not considered above
         # note that each variable with a negative key at this point is already added in its positive key version
@@ -377,7 +380,7 @@ class DDC:
         index = self._var2node[var].pos if positive else self._var2node[var].neg
         assert index in self._label, "Reward label wrongly initialised"
         old_label = self._label[index]
-        self._label[index] = (old_label[0], val * old_label[0])
+        self._label[index] = (old_label[0], val)
 
     def set_utility_label(self, var: str, eu: float):
         index = self._var2node[var].pos
@@ -396,19 +399,15 @@ class DDC:
     def size(self) -> int:
         return len(self._children)
 
-    # def _evidence_to_label(self, var: str, value: bool) -> (int, Tuple[float,float]):
-    #     # if variable 'a' is set to True, I will set ¬a probability to 0, and vice versa
-    #     node_index = self._var2node[var]
-    #     node_id = node_index.neg if value else node_index.pos
-    #     # label = self._label[node_id]
-    #     return node_id, (0.0, 0.0)  # eu = p * util
+    def get_param(self) -> List[tf.Variable]:
+        return self._parameters
 
     def filter(self, new_interface_prob: tf.Tensor, actions: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         cache = dict()
         act_node_neg_ids = []
-        for i, act in enumerate(actions):
+        for i in range(len(actions)):
             actvar = self._id2actvar[i]
-            if act:
+            if actions[i]:
                 act_node_neg_ids.append(self._var2node[actvar].neg)
             else:
                 act_node_neg_ids.append(self._var2node[actvar].pos)
@@ -417,19 +416,15 @@ class DDC:
                 cache[node] = self._semiring.one()
             elif self._type[node] == NodeType.LITERAL:
                 (p, eu) = self._label[node]
+                eu =  p * eu
                 if node in self._decisions:
-                    # if node in act_node_pos_ids:
-                    #     p = 1.0
-                    # else:
                     if node in act_node_neg_ids:
                         p, eu = 0.0, 0.0
                 elif self._is_interface[node]:
                     i = self._node2interface[node]
                     p = new_interface_prob[i]
                 if node in self._states:
-                    cache[node] = self._semiring.value(
-                        (p * self._states[node], eu)
-                    )
+                    cache[node] = (p * self._states[node], eu)
                 else:
                     cache[node] = (p, eu)
             elif self._type[node] == NodeType.OR:
@@ -449,107 +444,7 @@ class DDC:
                     total = self._semiring.times(total, cache[child])
                 cache[node] = total
 
-        # ddc_eval = cache[self._root]
-        p, eu = cache[self._root]
-        assert any(p > 0.0), "All states have prob zero"
-
-        return p, eu
-
-    # def best_dec(self, state: Dict[str, bool] = None) -> Label:
-    #     return self._evaluate_root_iter(BestDecSemiring(self._decisions), state)
-
-    # def _evaluate_root_iter(
-    #     self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None
-    # ) -> Label:
-    #     self._semiring = semiring
-    #
-    #     evidence_label: Dict[int, Label] = dict()
-    #     if evidence is not None:
-    #         for var, value in evidence.items():
-    #             node, label = self._evidence_to_label(var, value)
-    #             evidence_label[node] = label
-    #
-    #     self._cache = dict()
-    #     for node, children in self._children.items():
-    #         if self._type[node] == NodeType.TRUE:
-    #             self._cache[node] = self._semiring.one()
-    #         elif self._type[node] == NodeType.LITERAL:
-    #             if evidence_label is not None and node in evidence_label:
-    #                 self._cache[node] = evidence_label[node]
-    #             else:
-    #                 self._cache[node] = self._label[node]
-    #         elif self._type[node] == NodeType.OR:
-    #             assert (
-    #                 len(self._children[node]) > 0
-    #             ), "There is an OR node with no children"
-    #             total = self._cache[children[0]]
-    #             for child in children[1:]:
-    #                 total = self._semiring.plus(total, self._cache[child])
-    #             self._cache[node] = total
-    #         elif self._type[node] == NodeType.AND:
-    #             assert (
-    #                 len(self._children[node]) > 0
-    #             ), "There is an AND node with no children"
-    #             total = self._cache[children[0]]
-    #             for child in children[1:]:
-    #                 total = self._semiring.times(total, self._cache[child])
-    #             self._cache[node] = total
-    #
-    #     ddc_eval = self._cache[self._root]
-    #     (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
-    #
-    #     # turn decision ids into variable names (i.e. human-readable)
-    #     dec_vars: Set[str] = set()
-    #     for d in dec:
-    #         for d_var in self._node_to_var(d):
-    #             dec_vars.add(d_var)
-    #
-    #     return Label(prob, eu, dec_vars)
-
-    # def evaluate_root(self, semiring: BestDecSemiring, evidence: Dict[str, bool] = None) -> Label:
-    #     self._semiring = semiring
-    #
-    #     evidence_label: Dict[int, Label] = dict()
-    #     if evidence is not None:
-    #         for var, value in evidence.items():
-    #             node, label = self._evidence_to_label(var, value)
-    #             evidence_label[node] = label
-    #
-    #     ddc_eval = self._evaluate_node(self._root, evidence_label)
-    #     self._cache = dict()  # empty cache
-    #     (prob, eu, dec) = semiring.normalise(ddc_eval, ddc_eval)
-    #
-    #     # turn decision ids into variable names (i.e. human-readable)
-    #     dec_vars: Set[str] = set()
-    #     for d in dec:
-    #         for d_var in self._node_to_var(d):
-    #             dec_vars.add(d_var)
-    #
-    #     return Label(prob, eu, dec_vars)
-    #
-    # def _evaluate_node(self, node: int, evidence_label: Dict[int, Label]) -> Label:
-    #     assert node != self._false, "False node is evaluated"
-    #     if node in self._cache:
-    #         return self._cache[node]
-    #     if self._type[node] == NodeType.TRUE:
-    #         self._cache[node] = self._semiring.one()
-    #         return self._semiring.one()
-    #     elif self._type[node] == NodeType.LITERAL:
-    #         res = self._label[node]
-    #         if evidence_label is not None and node in evidence_label:
-    #             res = evidence_label[node]
-    #         self._cache[node] = res
-    #         return res
-    #     elif self._type[node] == NodeType.OR or self._type[node] == NodeType.AND:
-    #         assert len(self._children[node]) > 0, "There is an AND/OR node with no children"
-    #         total = self._evaluate_node(self._children[node][0], evidence_label)
-    #         for child in self._children[node][1:]:
-    #             child_eval = self._evaluate_node(child, evidence_label)
-    #             new_total = self._semiring.plus(total, child_eval) if self._type[node] == NodeType.OR \
-    #                 else self._semiring.times(total, child_eval)
-    #             total = new_total
-    #         self._cache[node] = total
-    #         return total
+        return cache[self._root]
 
     def impossible_utilities(self) -> List[str]:
         impossible_utilities = []
