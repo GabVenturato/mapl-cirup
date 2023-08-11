@@ -43,7 +43,7 @@ class DDCModel(tf.keras.Model):
 
         return tf.convert_to_tensor(exp_rewards)
 
-def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
+def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size, dataset_name):
     keras_model = DDCModel(ddn, id2statevar, id2actvar)
     keras_model.transform_x(x)
 
@@ -117,7 +117,7 @@ def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
     results = (history.params, history.losses, list(keras_model.utility_param_names))
 
     # Log results
-    log_file = os.path.join(os.path.dirname(ddn), "log_100epochs_10trajectories.pickle")
+    log_file = os.path.join(os.path.dirname(ddn), f"log_{epochs}epochs_{lr}lr_{dataset_name}.pickle")
     with open(log_file, "wb") as f:
         pickle.dump(results, f)
 
@@ -167,11 +167,13 @@ def perform_learning(args):
     with open(args.train_file, 'rb') as f:
         train_dataset = pickle.load(f)
 
+    dataset_name = os.path.splitext(os.path.basename(args.train_file))[0]
+
     # prepare dataset for training
     # x = (initial state, list of actions)
     # y = list of observed rewards corresponding to the list of states
     x, y, id2statevar, id2actvar = prepare_dataset(train_dataset)
-    train(args.ddn_file, x, y, id2statevar, id2actvar, args.lr, args.epochs, args.batch_size)
+    train(args.ddn_file, x, y, id2statevar, id2actvar, args.lr, args.epochs, args.batch_size, dataset_name)
 
     #TODO: evaluation
 

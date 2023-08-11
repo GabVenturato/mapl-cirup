@@ -266,7 +266,9 @@ def main(argv):
     model_filepath = args.file
     model = PrologFile(model_filepath)
 
-    dataset_trajectory_filepath = f"./dataset_trajectories_seed{args.seed}.pickle"
+    n = args.dataset_size
+    traj_length = args.trajectory_length
+    dataset_trajectory_filepath = f"./dataset_n{n}_trajlen{traj_length}_seed{args.seed}.pickle"
     random.seed(a=args.seed)
 
     # Prepare engine
@@ -290,7 +292,7 @@ def main(argv):
 
     # get sample trajectories
     # db can't have decisions yet, because does not know how to sample.
-    dataset = create_dataset(db=db, nb_samples=10, trajectory_length=5)
+    dataset = create_dataset(db=db, nb_samples=n, trajectory_length=traj_length)
     with open(dataset_trajectory_filepath, "wb") as f:
         pickle.dump(dataset, f)
 
@@ -319,8 +321,10 @@ def argparser():
     import argparse
 
     parser = argparse.ArgumentParser(description="Create dataset for learning")
+    parser.add_argument('dataset_size', type=int, help="Size of the dataset")
+    parser.add_argument('trajectory_length', type=int, help="Length of each trajectory in the dataset")
     parser.add_argument('-f', '--file', help='Path to the input file', required=True)
-    parser.add_argument('-v', '--verbose', help='Verbose mode')
+    # parser.add_argument('-v', '--verbose', help='Verbose mode')
     parser.add_argument('-s', '--seed', help='which seed to use', type=int, default=1000)
     return parser
 

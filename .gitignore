@@ -4,6 +4,7 @@
 *.gv*
 results
 plots/*.pdf
+local-scripts/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
