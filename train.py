@@ -114,10 +114,10 @@ def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size):
 
     history.losses.append(-1)
 
-    results = (history.params, history.losses, keras_model.utility_param_names)
+    results = (history.params, history.losses, list(keras_model.utility_param_names))
 
     # Log results
-    log_file = os.path.join(os.path.dirname(ddn), "log.pickle")
+    log_file = os.path.join(os.path.dirname(ddn), "log_100epochs_10trajectories.pickle")
     with open(log_file, "wb") as f:
         pickle.dump(results, f)
 

@@ -20,25 +20,25 @@ def get_reward_params_from_db(db: ClauseDB) -> Dict[Term, int]:
     return {x: v.functor for (x, v) in reward_dict.items()}
 
 
-def print_evaluation(learned_params_dict: [Term, float],
-                     true_params_dict: Dict[Term, float]):
+def print_evaluation(learned_params_dict: Dict[str, float],
+                     true_params_dict: Dict[str, float]):
     assert len(learned_params_dict) == len(true_params_dict)
     print("-- Printing parameters --")
-    print("name -- true val -- learned val (abs error  | rel err %)")
+    print("name".ljust(10, ' ') + "\t|\ttrue val\t|\tlearned val\t|\tabs error\t|\trel err %")
     abs_errors = []
     rel_errors = []
-    for pname in learned_params_dict:
+    for pname in true_params_dict:
         learned_val = learned_params_dict[pname]
         true_val = true_params_dict[pname]
         abs_error = abs(learned_val - true_val)
-        rel_error = abs_error / true_val if true_val != 0 else "nan"
-        print(f"{pname}\t{true_val}\t{learned_val}\t ({abs_error}|{rel_error}%)")
+        rel_error = abs_error / abs(true_val) * 100. if true_val != 0 else "nan"
+        print(f"{pname.ljust(10, ' ')}\t{true_val:10d}\t\t{learned_val:.4f}\t\t{abs_error:.4f}\t\t{rel_error:.2f}")
         abs_errors.append(abs_error)
         rel_errors.append(rel_error)
     abs_errors = np.array(abs_errors)
     rel_errors = np.array(rel_errors)
     print("----------")
-    print(f"Average rel error {np.average(rel_errors)} (+- variance {np.var(rel_errors)})")
+    print(f"Average rel error {np.average(rel_errors):.2f}% (+- variance {np.std(rel_errors):.2f}%)")
 
 
 def create_param_dict(params: List[float], params_names: List[Term]):
@@ -58,12 +58,14 @@ def get_rel_errors(learned_values, true_values: List[float]) -> List[List[float]
     learned_values = np.array(learned_values)
     true_values = np.array(true_values)
     error_values = learned_values - true_values
-    return error_values / true_values
+    return abs(error_values) / abs(true_values)
 
 
-def param_dict_to_list(param_dict: Dict[Term, float], new_order: List[Term]):
+def param_dict_to_list(param_dict: Dict[str, float], new_order: List[str]):
     """ transform param_dict into a list of values, ordered by the names given in new_order. """
     return [param_dict[pname] for pname in new_order]
+
+def
 
 
 def plot_loss_and_rel_error(loss, avg_rel_errors):
@@ -80,7 +82,7 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
 
     ax2 = ax1.twinx()
     color = 'tab:green'
-    ax2.set_ylabel('Average relative errors (%', color=color)
+    ax2.set_ylabel('Average relative errors', color=color)
     ax2.plot(iterations, avg_rel_errors, color=color, linestyle='dashed')
     # ax2.tick_params(axis='y', labelcolor=color)
 
@@ -88,7 +90,7 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
     plt.savefig("loss_avg_rel_error.pdf", format="pdf", bbox_inches='tight')
     plt.show()
 
-if __name__ == '__main__':
+def main():
     # extract results
     with open("examples_learning/log.pickle", 'rb') as f:
         results = pickle.load(f)
@@ -101,6 +103,16 @@ if __name__ == '__main__':
     model = PrologFile(true_filepath)
     db = DefaultEngine().prepare(model)
     true_dict = get_reward_params_from_db(db)
+    true_dict = {str(p): v for (p,v) in true_dict.items()}
 
     # evaluation
     print_evaluation(learned_dict, true_dict)
+
+    # plots
+    true_list = param_dict_to_list(param_dict=true_dict, new_order=learned_param_names)
+    rel_errors = get_rel_errors(learned_params, true_list)
+    avg_rel_errors = np.average(rel_errors, axis=1)
+    plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
+
+if __name__ == '__main__':
+    main()
