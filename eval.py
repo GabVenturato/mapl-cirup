@@ -1,5 +1,5 @@
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import numpy as np
 from problog.clausedb import ClauseDB
@@ -9,6 +9,9 @@ from problog.program import PrologFile
 from problog.engine import DefaultEngine
 
 import matplotlib.pyplot as plt
+
+from examples_learning import create_learn_dataset
+
 
 def get_reward_params_from_db(db: ClauseDB) -> Dict[Term, int]:
     """
@@ -87,6 +90,62 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
     fig.tight_layout()
     plt.savefig("loss_avg_rel_error.pdf", format="pdf", bbox_inches='tight')
     plt.show()
+
+
+def evaluate_states(db: ClauseDB,
+                    learned_params: List[List[float]],
+                    learned_param_names: List[str]):
+    decision_vars = set()
+    decision_vars.union(*create_learn_dataset.get_decision_terms(db))
+    decision_vars = list(decision_vars)
+    state_vars = [str(s) for s in create_learn_dataset.get_state_variables(db)]
+    learned_params = np.array(learned_params)
+    reward_dict = {pname: learned_params[:,i] for i, pname in enumerate(learned_param_names)}
+    # TODO: check reward_dict construction, is slicing correct?
+    # TODO: also check decision_vars and state_vars
+    print("check reward_dict correctness!")
+
+    def _hardcoded_reward_func(state_dict, actions_dict):
+        # r0 :- huc, wet.
+        # r1 :- huc, \+wet.
+        # r3 :- \+huc, \+wet.
+        # wet, office, getu, buyc
+        reward = 0
+        is_r0 = state_dict["huc"] and state_dict["wet"]
+        is_r1 = state_dict["huc"] and not state_dict["wet"]
+        is_r3 = not state_dict["huc"] and not state_dict["wet"]
+        reward += is_r0 * reward_dict["r0"]
+        reward += is_r1 * reward_dict["r1"]
+        reward += is_r3 * reward_dict["r3"]
+        reward += state_dict["wet"] * reward_dict["wet"]
+        reward += state_dict["office"] * reward_dict["office"]
+        reward += actions_dict["getu"] * reward_dict["getu"]
+        reward += actions_dict["buyc"] * reward_dict["buyc"]
+        return reward
+
+    def _idx_to_state(_idx, _state_vars, _decision_vars):
+        # bit magic, each bit in _idx represents a state_var
+        # so we check the bit using a mask to see if the state_var is true or false
+        state_list = []
+        for j, svar in enumerate(_state_vars):
+            mask = 1 << j  # TODO: check that mask is correct, and check which bits are for actions
+            if (_idx & mask) > 0:
+                state_list.append(svar)
+            else:
+                state_list.append(f"\\+{svar}")
+        action_list = []
+
+        return state_list, action_list
+
+    # go over each state, action set
+    # since each decision is an AD, it is decision_vars * 2**|state_vars|
+    state_rewards = []
+    for i in range(2**len(state_vars) * len(decision_vars)):
+        state, action = _idx_to_state(i, state_vars, decision_vars)
+        # compute its utility, add it to a list
+        reward = _hardcoded_reward_func(state, action, reward_dict)
+        state_rewards.append(reward)
+    return state_rewards
 
 def main():
     # extract results
