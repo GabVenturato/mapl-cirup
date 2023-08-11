@@ -1,4 +1,5 @@
 import pickle
+import sys
 from typing import Dict, List, Set
 
 import numpy as np
@@ -102,6 +103,7 @@ def evaluate_states(db: ClauseDB,
     :param learned_param_names:
     :return:
     """
+    print("!! WARNING: hardcoded reward function in evaluate_states !!", file=sys.stderr)
     decision_vars = set()
     decision_vars = decision_vars.union(*create_learn_dataset.get_decision_terms(db))
     decision_vars = [str(x) for x in decision_vars]
