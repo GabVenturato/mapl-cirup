@@ -146,7 +146,7 @@ def gen_spudd_transition(var_num):
     return transition
 
 
-def gen_spudd_improv_transition(var_num):
+def gen_spudd_improv_transition(var_num, trans, dec_bool_list):
     transition = dict()
 
     for i in range(1, var_num + 1):
@@ -158,7 +158,7 @@ def gen_spudd_improv_transition(var_num):
         trans_state[VAR_NAME + str(i)] = True
 
         while trans_state is not None:
-            distribution.append((trans_state, gen_probability()))
+            distribution.append((trans_state, trans[VAR_NAME + str(i)][tuple(list(trans_state.values()) + dec_bool_list)]))
             trans_state = enumeration_next(trans_state)
 
         transition[VAR_NAME + str(i)] = distribution
@@ -217,9 +217,31 @@ def gen_spudd_model(dec_num, var_num, reward):
     f.write("\ndiscount 0.900000\ntolerance 0.1\n")
     f.close()
 
-def gen_spudd_improv_model(dec_num, var_num, reward):
+def gen_spudd_improv_model(dec_num, var_num, mapl_trans, mapl_struct, reward):
     filename = "synth_struct_chain_d" + str(dec_num) + "_v" + str(var_num) + "_improved.dat"
     f = open(filename, "w")
+
+    # def transform_x_pred(state):
+    #     new_state = []
+    #     for s in state:
+    #         new_s = s
+    #         if s[0] == "x":
+    #             new_s = s[2:-1] + "'"
+    #         new_state.append(new_s)
+    #     return new_state
+
+    spudd_trans = dict()  # var -> [bool] -> prob
+    for var, distrib in mapl_trans.items():
+        spudd_trans[var[2:-1]] = dict()
+        for state, prob in distrib:
+            if len(mapl_struct) > 0 and len(spudd_trans) > 1:
+                for struct_var, struct_distrib in mapl_struct.items():
+                    for struct_state, struct_prob in struct_distrib:
+                        if var == struct_var:
+                            # spudd_struct_state = transform_x_pred(struct_state)
+                            spudd_trans[var[2:-1]][tuple(list(struct_state.values()) + list(state.values()))] = round(prob * struct_prob,2)
+            else:
+                spudd_trans[var[2:-1]][tuple(state.values())] = prob
 
     # Variables
     variables = []
@@ -229,8 +251,12 @@ def gen_spudd_improv_model(dec_num, var_num, reward):
     f.write("(variables " + " ".join(variables) + ")\n\n")
 
     # Transition
+    dec = dict()
+    for j in range(1, dec_num+1):
+        dec[DEC_NAME + str(j)] = True
     for d in range(1, (2**dec_num)+1):
-        trans = gen_spudd_improv_transition(var_num)
+        trans = gen_spudd_improv_transition(var_num, spudd_trans, list(dec.values()))
+        dec = enumeration_next(dec)
 
         f.write("action a%s\n" % d)
         for var in trans:
@@ -251,7 +277,7 @@ def gen_spudd_improv_model(dec_num, var_num, reward):
 
 def main():
     for dec_num in range(1, 2):
-        for var_num in range(1, 4):
+        for var_num in range(1, 11):
             trans = gen_transition(dec_num, var_num)
             print("\nTransition:")
             for el in trans:
@@ -267,10 +293,10 @@ def main():
             for el in rew:
                 print(str(el) + " => " + str(rew[el]))
 
-            # gen_mc_model(dec_num, var_num, trans, struct, rew)
+            gen_mc_model(dec_num, var_num, trans, struct, rew)
             # if var_num <= 5:
             #     gen_spudd_model(dec_num, var_num, rew)
-            gen_spudd_improv_model(dec_num, var_num, rew)
+            gen_spudd_improv_model(dec_num, var_num, trans, struct, rew)
 
 if __name__ == '__main__':
     main()
