@@ -1,4 +1,5 @@
 import pickle
+import sys
 from typing import Dict, List, Set
 
 import numpy as np
@@ -93,14 +94,28 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
 
 
 def evaluate_states(db: ClauseDB,
-                    learned_params: List[List[float]],
+                    learned_params,
                     learned_param_names: List[str]):
+    """
+
+    :param db:
+    :param learned_params: : List[List[float]] or List[float]
+    :param learned_param_names:
+    :return:
+    """
+    print("!! WARNING: hardcoded reward function in evaluate_states !!", file=sys.stderr)
     decision_vars = set()
     decision_vars = decision_vars.union(*create_learn_dataset.get_decision_terms(db))
     decision_vars = [str(x) for x in decision_vars]
+    decision_vars.sort()
     state_vars = [str(s) for s in create_learn_dataset.get_state_variables(db)]  # TODO push outside
+    state_vars.sort()
     learned_params = np.array(learned_params)
-    reward_dict = {pname: learned_params[:,i] for i, pname in enumerate(learned_param_names)}
+    if len(learned_params.shape) == 1:
+        reward_dict = {pname: learned_params[i] for i, pname in enumerate(learned_param_names)}
+    else:
+        assert len(learned_params.shape) == 2
+        reward_dict = {pname: learned_params[:,i] for i, pname in enumerate(learned_param_names)}
 
     def _hardcoded_reward_func(_state, _action):
         # r0 :- huc, wet.
@@ -144,6 +159,7 @@ def evaluate_states(db: ClauseDB,
             state_rewards.append(reward)
     return state_rewards
 
+
 def main():
     # extract results
     with open("examples_learning/log_30epochs_0.1lr_dataset_n10_trajlen10_seed42.pickle", 'rb') as f:
@@ -168,8 +184,27 @@ def main():
     avg_rel_errors = np.average(rel_errors, axis=1)
     plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
 
-    # utility_per_state = evaluate_states(db, learned_params[:-1], learned_param_names)
-    # print("test")
+    print("============= utility per state =============")
+    # compute utilities of states
+    utility_per_state_learned = evaluate_states(db, learned_params[:-1], learned_param_names)
+    utility_per_state_learned = np.array(utility_per_state_learned)
+    utility_per_state_true = evaluate_states(db, true_list, learned_param_names)
+    utility_per_state_true = np.array(utility_per_state_true, dtype=np.float32).reshape(-1, 1)
+    # reshape is needed to change (256,) into (256,1) so that we can perform operations between
+    # utility_per_state_learned and utility_per_state_true
+
+    err_per_state = utility_per_state_learned - utility_per_state_true
+    err_per_state_last_epoch = err_per_state[:,-1]
+    print(f"Average absolute error, of the reward of each state: {np.average(abs(err_per_state_last_epoch)):.6f}")
+    # result /= utility_per_state_true  #TODO: division by 0..
+    # result = abs(result)
+    # print(result)
+
+    for state_idx in range(len(err_per_state_last_epoch)):
+        print(f"state {state_idx:3d}\t "
+              f"true ({utility_per_state_true[state_idx]})\t "
+              f"learned ({(utility_per_state_learned[state_idx,-1]):.4f})\t"
+              f"abs_error ({abs(err_per_state_last_epoch[state_idx]):.4f})")
 
 
 if __name__ == '__main__':
