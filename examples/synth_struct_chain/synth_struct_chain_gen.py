@@ -146,6 +146,25 @@ def gen_spudd_transition(var_num):
     return transition
 
 
+def gen_spudd_improv_transition(var_num):
+    transition = dict()
+
+    for i in range(1, var_num + 1):
+        distribution = []
+        trans_state = dict()
+        if i > 1:
+            trans_state[VAR_NAME + str(i-1)] = True
+            trans_state[VAR_NAME + str(i-1) + "'"] = True
+        trans_state[VAR_NAME + str(i)] = True
+
+        while trans_state is not None:
+            distribution.append((trans_state, gen_probability()))
+            trans_state = enumeration_next(trans_state)
+
+        transition[VAR_NAME + str(i)] = distribution
+
+    return transition
+
 def get_var_trans_str(depth, state_vars, transition, curr_state):
     if depth == 0:
         for state, prob in transition:
@@ -198,10 +217,41 @@ def gen_spudd_model(dec_num, var_num, reward):
     f.write("\ndiscount 0.900000\ntolerance 0.1\n")
     f.close()
 
+def gen_spudd_improv_model(dec_num, var_num, reward):
+    filename = "synth_struct_chain_d" + str(dec_num) + "_v" + str(var_num) + "_improved.dat"
+    f = open(filename, "w")
 
-if __name__ == '__main__':
+    # Variables
+    variables = []
+    for i in range(1, var_num + 1):
+        variables.append("(%s t f)" % (VAR_NAME + str(i)))
+
+    f.write("(variables " + " ".join(variables) + ")\n\n")
+
+    # Transition
+    for d in range(1, (2**dec_num)+1):
+        trans = gen_spudd_improv_transition(var_num)
+
+        f.write("action a%s\n" % d)
+        for var in trans:
+            state, prob = trans[var][0]
+            state_vars = list(state.keys())
+            var_trans_str = get_var_trans_str(len(state_vars), state_vars, trans[var], dict())
+            f.write(var + " " + var_trans_str + "\n")
+        f.write("endaction\n\n")
+
+    # Reward
+    f.write("reward [+\n")
+    for i in range(1, var_num + 1):
+        f.write("\t(%s (t (%s)) (f (0.0)))\n" % (VAR_NAME + str(i), reward[VAR_NAME + str(i)]))
+    f.write("]\n")
+
+    f.write("\ndiscount 0.900000\ntolerance 0.1\n")
+    f.close()
+
+def main():
     for dec_num in range(1, 2):
-        for var_num in range(1, 11):
+        for var_num in range(1, 4):
             trans = gen_transition(dec_num, var_num)
             print("\nTransition:")
             for el in trans:
@@ -217,6 +267,10 @@ if __name__ == '__main__':
             for el in rew:
                 print(str(el) + " => " + str(rew[el]))
 
-            gen_mc_model(dec_num, var_num, trans, struct, rew)
-            if var_num <= 5:
-                gen_spudd_model(dec_num, var_num, rew)
+            # gen_mc_model(dec_num, var_num, trans, struct, rew)
+            # if var_num <= 5:
+            #     gen_spudd_model(dec_num, var_num, rew)
+            gen_spudd_improv_model(dec_num, var_num, rew)
+
+if __name__ == '__main__':
+    main()

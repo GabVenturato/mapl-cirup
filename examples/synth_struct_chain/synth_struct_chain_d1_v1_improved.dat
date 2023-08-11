@@ -1,0 +1,16 @@
+(variables (s1 t f))
+
+action a1
+s1 (s1 (t (0.47 0.53)) (f (0.38 0.62)))
+endaction
+
+action a2
+s1 (s1 (t (0.21 0.79)) (f (0.49 0.51)))
+endaction
+
+reward [+
+	(s1 (t (1)) (f (0.0)))
+]
+
+discount 0.900000
+tolerance 0.1
