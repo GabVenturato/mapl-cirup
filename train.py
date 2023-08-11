@@ -117,7 +117,7 @@ def train(ddn, x, y, id2statevar, id2actvar, lr, epochs, batch_size, dataset_nam
     results = (history.params, history.losses, list(keras_model.utility_param_names))
 
     # Log results
-    log_file = os.path.join(os.path.dirname(ddn), f"log_{epochs}epochs_{dataset_name}.pickle")
+    log_file = os.path.join(os.path.dirname(ddn), f"log_{epochs}epochs_{lr}lr_{dataset_name}.pickle")
     with open(log_file, "wb") as f:
         pickle.dump(results, f)
 
