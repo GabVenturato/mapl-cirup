@@ -1,5 +1,5 @@
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import numpy as np
 from problog.clausedb import ClauseDB
@@ -9,6 +9,9 @@ from problog.program import PrologFile
 from problog.engine import DefaultEngine
 
 import matplotlib.pyplot as plt
+
+from examples_learning import create_learn_dataset
+
 
 def get_reward_params_from_db(db: ClauseDB) -> Dict[Term, int]:
     """
@@ -88,6 +91,59 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
     plt.savefig("loss_avg_rel_error.pdf", format="pdf", bbox_inches='tight')
     plt.show()
 
+
+def evaluate_states(db: ClauseDB,
+                    learned_params: List[List[float]],
+                    learned_param_names: List[str]):
+    decision_vars = set()
+    decision_vars = decision_vars.union(*create_learn_dataset.get_decision_terms(db))
+    decision_vars = [str(x) for x in decision_vars]
+    state_vars = [str(s) for s in create_learn_dataset.get_state_variables(db)]  # TODO push outside
+    learned_params = np.array(learned_params)
+    reward_dict = {pname: learned_params[:,i] for i, pname in enumerate(learned_param_names)}
+
+    def _hardcoded_reward_func(_state, _action):
+        # r0 :- huc, wet.
+        # r1 :- huc, \+wet.
+        # r3 :- \+huc, \+wet.
+        # wet, office, getu, buyc
+        _reward = 0
+        is_r0 = "huc" in _state and "wet" in _state
+        is_r1 = "huc" in _state and "wet" not in _state
+        is_r3 = "huc" not in _state and "wet" not in _state
+        _reward += reward_dict["r0"] * is_r0
+        _reward += reward_dict["r1"] * is_r1
+        _reward += reward_dict["r3"] * is_r3
+        _reward += reward_dict["wet"] * ("wet" in _state)
+        _reward += reward_dict["office"] * ("office" in _state)
+        _reward += reward_dict["getu"] * ("getu" in _action)
+        _reward += reward_dict["buyc"] * ("buyc" in _action)
+        return _reward
+
+    def _idx_to_state(_idx, _state_vars):
+        # bit magic, each bit in _idx represents a state_var
+        # so we check the bit using a mask to see if the state_var is true or false
+        _state_list = []
+        for j, svar in enumerate(_state_vars):
+            mask = 1 << j
+            if (_idx & mask) > 0:
+                _state_list.append(svar)
+            else:
+                _state_list.append(f"\\+{svar}")
+        return _state_list
+
+    # go over each state, action set
+    # since each decision is an AD, it is decision_vars * 2**|state_vars|
+    state_rewards = []
+    for decision_var in decision_vars:
+        for i in range(2**len(state_vars)):
+            state, action = _idx_to_state(i, state_vars), {decision_var}
+            state = set(state)
+            # compute its utility, add it to a list
+            reward = _hardcoded_reward_func(state, action)
+            state_rewards.append(reward)
+    return state_rewards
+
 def main():
     # extract results
     with open("examples_learning/log_30epochs_dataset_n100_trajlen5_seed42.pickle", 'rb') as f:
@@ -111,6 +167,10 @@ def main():
     rel_errors = get_rel_errors(learned_params, true_list)
     avg_rel_errors = np.average(rel_errors, axis=1)
     plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
+
+    # utility_per_state = evaluate_states(db, learned_params[:-1], learned_param_names)
+    # print("test")
+
 
 if __name__ == '__main__':
     main()
