@@ -65,8 +65,6 @@ def param_dict_to_list(param_dict: Dict[str, float], new_order: List[str]):
     """ transform param_dict into a list of values, ordered by the names given in new_order. """
     return [param_dict[pname] for pname in new_order]
 
-def
-
 
 def plot_loss_and_rel_error(loss, avg_rel_errors):
     assert len(loss) == len(avg_rel_errors)
