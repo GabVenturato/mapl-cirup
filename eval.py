@@ -93,6 +93,40 @@ def plot_loss_and_rel_error(loss, avg_rel_errors):
     plt.show()
 
 
+def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
+    assert len(loss) == len(avg_rel_errors)
+    assert len(loss) == len(avg_state_errors)
+    iterations = range(len(loss))
+
+    figsize = 7, 4 # width , height
+    fig, ax1 = plt.subplots(figsize=figsize)
+    fig.subplots_adjust(right=0.75)
+
+    ax2 = ax1.twinx()
+    ax3 = ax1.twinx()
+    ax3.spines["right"].set_position(("axes", 1.2))
+
+    color = 'tab:blue'
+    ax1.set_xlabel('Iterations')
+    ax1.set_ylabel('Loss', color=color)
+    ax1.plot(iterations, loss, label="loss", color=color, linestyle="solid")
+
+    color = 'tab:green'
+    ax2.set_ylabel('errors', color=color)
+    ax2.plot(iterations, avg_rel_errors, label="average relative error", color=color,
+             linestyle='dashed')
+
+    color = "tab:orange"
+    ax3.set_ylabel('state errors', color=color)
+    ax3.plot(iterations, avg_state_errors, label="average state error", color=color,
+             linestyle='dotted')
+
+    fig.legend(loc="upper center", bbox_to_anchor=[0.64, 0.94])
+    fig.tight_layout()
+    plt.savefig("loss_avg_rel_errors.pdf", format="pdf", bbox_inches='tight')
+    plt.show()
+
+
 def evaluate_states(db: ClauseDB,
                     learned_params,
                     learned_param_names: List[str]):
@@ -160,9 +194,23 @@ def evaluate_states(db: ClauseDB,
     return state_rewards
 
 
+def print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned):
+    err_per_state_last_epoch = err_per_state[:, -1]
+    print(f"Average absolute error, of the reward of each state: "
+        f"{np.average(abs(err_per_state_last_epoch)):.6f}")
+    # result /= utility_per_state_true  #TODO: division by 0..
+    # result = abs(result)
+    # print(result)
+
+    for state_idx in range(len(err_per_state_last_epoch)):
+        print(f"state {state_idx:3d}\t "
+              f"true ({utility_per_state_true[state_idx]})\t "
+              f"learned ({(utility_per_state_learned[state_idx, -1]):.4f})\t"
+              f"abs_error ({abs(err_per_state_last_epoch[state_idx]):.4f})")
+
 def main():
     # extract results
-    with open("examples_learning/log_30epochs_0.1lr_dataset_n10_trajlen10_seed42.pickle", 'rb') as f:
+    with open("examples_learning/log_30epochs_0.1lr_dataset_n100_trajlen5_seed42.pickle", 'rb') as f:
         results = pickle.load(f)
         learned_params, losses, learned_param_names = results
     # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
@@ -182,7 +230,7 @@ def main():
     true_list = param_dict_to_list(param_dict=true_dict, new_order=learned_param_names)
     rel_errors = get_rel_errors(learned_params, true_list)
     avg_rel_errors = np.average(rel_errors, axis=1)
-    plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
+    # plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
 
     print("============= utility per state =============")
     # compute utilities of states
@@ -192,19 +240,13 @@ def main():
     utility_per_state_true = np.array(utility_per_state_true, dtype=np.float32).reshape(-1, 1)
     # reshape is needed to change (256,) into (256,1) so that we can perform operations between
     # utility_per_state_learned and utility_per_state_true
-
     err_per_state = utility_per_state_learned - utility_per_state_true
-    err_per_state_last_epoch = err_per_state[:,-1]
-    print(f"Average absolute error, of the reward of each state: {np.average(abs(err_per_state_last_epoch)):.6f}")
-    # result /= utility_per_state_true  #TODO: division by 0..
-    # result = abs(result)
-    # print(result)
 
-    for state_idx in range(len(err_per_state_last_epoch)):
-        print(f"state {state_idx:3d}\t "
-              f"true ({utility_per_state_true[state_idx]})\t "
-              f"learned ({(utility_per_state_learned[state_idx,-1]):.4f})\t"
-              f"abs_error ({abs(err_per_state_last_epoch[state_idx]):.4f})")
+    print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned)
+
+    # plot state errors
+    avg_state_error_per_epoch = np.average(abs(err_per_state), axis=0)
+    plot_loss_and_rel_errors(losses[:-1], avg_rel_errors[:-1], avg_state_error_per_epoch)
 
 
 if __name__ == '__main__':
