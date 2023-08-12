@@ -162,7 +162,7 @@ def evaluate_states(db: ClauseDB,
 
 def main():
     # extract results
-    with open("examples_learning/log_30epochs_0.1lr_dataset_n10_trajlen10_seed42.pickle", 'rb') as f:
+    with open("examples_learning/log_100epochs_dataset_n10_trajlen5_seed1000.pickle", 'rb') as f:
         results = pickle.load(f)
         learned_params, losses, learned_param_names = results
     # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
