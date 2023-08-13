@@ -210,7 +210,7 @@ def print_err_per_state(err_per_state, utility_per_state_true, utility_per_state
 
 def main():
     # extract results
-    with open("examples_learning/log_50epochs_1lr_dataset_n10_trajlen5_seed1000.pickle", 'rb') as f:
+    with open("examples_learning/log_30epochs_0.1lr_dataset_n100_trajlen5_seed42.pickle", 'rb') as f:
         results = pickle.load(f)
         learned_params, losses, learned_param_names = results
     # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
