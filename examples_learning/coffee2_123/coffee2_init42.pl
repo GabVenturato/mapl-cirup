@@ -83,11 +83,12 @@ r3 :- \+huc, \+wet.
 
 
 
-utility(getu, 2).
-utility(buyc, 2).
-utility(move, 9).
-utility(r3, 3).
-utility(r0, 19).
-utility(delc, 1).
-utility(r1, 11).
-utility(office, 7).
+utility(getu, 13).
+utility(buyc, 1).
+utility(move, 6).
+utility(r3, 5).
+utility(r0, 15).
+utility(delc, 14).
+utility(r1, 18).
+utility(office, 2).
+?::getu; ?::delc; ?::buyc; ?::move.

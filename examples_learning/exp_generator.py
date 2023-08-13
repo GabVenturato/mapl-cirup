@@ -18,41 +18,51 @@ import create_learn_dataset as our_generator
 
 exp_version = "coffee2"
 filepath_blank = "./coffee2_blank.pl"
-nb_trajectories = 100
-trajectory_length = 5
+nb_trajectories = [10,100,200]
+trajectory_length = [5, 10]
 nb_init_models = 10
 seed_true = 123
 seed_traj = 1000
+seed_init = 42
 exp_folder = f"./{exp_version}_{seed_true}"
 
 if not os.path.exists(exp_folder):
     os.makedirs(exp_folder)
 
-# create true and dataset
+# create true
 args = [
     "-t", # true model
     "--seed_true", f"{seed_true}",
     "--blank_input_filepath", f"{filepath_blank}",
     "--true_filepath", f"{exp_folder}/{exp_version}_true.pl",
     "--true_wo_dec_filepath", f"{exp_folder}/{exp_version}_true_wo_dec.pl",
-    "-d", # dataset
-    "--seed_traj", f"{seed_traj}",
-    "--dataset_folder", f"{exp_folder}/",
-    "--dataset_size", f"{nb_trajectories}",
-    "--traj_length", f"{trajectory_length}",
 ]
 our_generator.main(args)
+
+# create datasets
+for dataset_size in nb_trajectories:
+    for traj_len in trajectory_length:
+        args = [
+            "--true_wo_dec_filepath", f"{exp_folder}/{exp_version}_true_wo_dec.pl",
+            "-d", # dataset
+            "--seed_traj", f"{seed_traj}",
+            "--dataset_folder", f"{exp_folder}/",
+            "--dataset_size", f"{dataset_size}",
+            "--traj_length", f"{traj_len}",
+        ]
+        our_generator.main(args)
+        seed_traj += 1
 
 
 # create init models
 for idx in range(nb_init_models):
-    init_seed = random.randint(0, 200000000000)
     args = [
         "-i",  # init
-        "--seed_init", f"{init_seed}",
-        "--init_filepath", f"{exp_folder}/{exp_version}_init{init_seed}.pl",
+        "--seed_init", f"{seed_init}",
+        "--init_filepath", f"{exp_folder}/{exp_version}_init{seed_init}.pl",
         "--blank_input_filepath", f"{filepath_blank}"
     ]
     our_generator.main(args)
+    seed_init += 1
 
 

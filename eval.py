@@ -215,14 +215,15 @@ def main():
     all_avg_rel_errors = []
     all_avg_state_error_per_epoch = []
     for s in range(1,11):
-        with open(f"examples_learning/coffee2_123/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
+        with open(
+                f"examples_learning/coffee2_123_old/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
             results = pickle.load(f)
             learned_params, losses, learned_param_names = results
         # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
         learned_dict = create_param_dict(learned_params[-1], learned_param_names)
 
         # extract true parameters
-        true_filepath = "examples_learning/coffee2_123/coffee2_true.pl"
+        true_filepath = "examples_learning/coffee2_123_old/coffee2_true.pl"
         model = PrologFile(true_filepath)
         db = DefaultEngine().prepare(model)
         true_dict = get_reward_params_from_db(db)
@@ -246,7 +247,7 @@ def main():
         # reshape is needed to change (256,) into (256,1) so that we can perform operations between
         # utility_per_state_learned and utility_per_state_true
         err_per_state = utility_per_state_learned - utility_per_state_true
-        # rel_err_per_state = err_per_state / utility_per_state_true
+        rel_err_per_state = err_per_state / utility_per_state_true
 
         # print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned)
 
