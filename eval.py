@@ -141,7 +141,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     avg_rel_errors_list = np.array(avg_rel_errors_list)
     avg_state_errors_list = np.array(avg_state_errors_list)
 
-    losses_std = np.std(loss_list, axis=0)  # TODO: check axis
+    losses_std = np.std(loss_list, axis=0)
     losses_avg = np.average(loss_list, axis=0)
     avg_rel_errors_std = np.std(avg_rel_errors_list, axis=0)
     avg_rel_errors_avg = np.average(avg_rel_errors_list, axis=0)
@@ -280,6 +280,7 @@ def print_err_per_state(err_per_state, utility_per_state_true, utility_per_state
               f"true ({utility_per_state_true[state_idx]})\t "
               f"learned ({(utility_per_state_learned[state_idx, -1]):.4f})\t"
               f"abs_error ({abs(err_per_state_last_epoch[state_idx]):.4f})")
+
 
 def main():
     # extract results
