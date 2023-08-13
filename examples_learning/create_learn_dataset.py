@@ -271,7 +271,7 @@ def _generate_trajectories(db: ClauseDB,
 
 def _add_reward_function(db: ClauseDB, db_str: str, reward_dict: Dict[Term, float]):
     """ Add the given reward function to the given db and db_str """
-    new_str = db_str
+    new_str = db_str + "\n"
     for reward_term, reward_value in reward_dict.items():
         db.add_fact(Term("utility", reward_term, Constant(reward_value)))
         new_str = new_str + f"utility({str(reward_term)}, {reward_value}).\n"
@@ -414,7 +414,7 @@ def main(argv):
         random.seed(a=seed_init)
         db, db_str = read_db_from_path(filepath_blank_model)
         reward_dict_true = get_random_reward_dict()
-        db, db_str = _add_reward_function(db, reward_dict_true)
+        db, db_str = _add_reward_function(db, db_str, reward_dict_true)
         db, db_str = _add_decisions(db, db_str)
         with open(filepath_init_model, "w") as f:
             # f.write(db.to_prolog())
