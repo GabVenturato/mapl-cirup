@@ -19,7 +19,7 @@ import create_learn_dataset as our_generator
 exp_version = "coffee2"
 filepath_blank = "./coffee2_blank.pl"
 nb_trajectories = 100
-trajectory_length = 10
+trajectory_length = 5
 nb_init_models = 10
 seed_true = 123
 seed_traj = 1000

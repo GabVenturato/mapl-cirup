@@ -28,7 +28,7 @@
 %% State variables
 decisions(move, delc, getu, buyc).
 state_variables(huc, hrc, wet, raining, umbrella, office).
-reward_variables(r0, r1, r3, wet, office, getu, buyc).
+reward_variables(r0, r1, r3, office, move, delc, getu, buyc).
 
 %% Model
 0.75::x(raining) :- raining.
@@ -81,10 +81,14 @@ r0 :- huc, wet.
 r1 :- huc, \+wet.
 r3 :- \+huc, \+wet.
 
-utility(r0, 3).
-utility(r1, 10).
-utility(r3, -2).
-utility(wet, -3).
-utility(office, -1).
+
+
+utility(r3, 6).
+utility(move, -3).
+utility(buyc, 3).
+utility(office, -9).
 utility(getu, -1).
-utility(buyc, -5).
+utility(r0, 3).
+utility(delc, 8).
+utility(r1, 4).
+?::move; ?::delc; ?::buyc; ?::getu.

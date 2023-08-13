@@ -16,7 +16,7 @@
 % - office: true is the robot is in the office, false if it's in the shop
 
 %% Decisions
-?::move; ?::delc; ?::getu; ?::buyc.
+% ?::move; ?::delc; ?::getu; ?::buyc.
 
 %?::a1.
 %?::a2.
@@ -28,7 +28,7 @@
 %% State variables
 decisions(move, delc, getu, buyc).
 state_variables(huc, hrc, wet, raining, umbrella, office).
-reward_variables(r0, r1, r3, wet, office, getu, buyc).
+reward_variables(r0, r1, r3, office, move, delc, getu, buyc).
 
 %% Model
 0.75::x(raining) :- raining.
@@ -81,11 +81,14 @@ r0 :- huc, wet.
 r1 :- huc, \+wet.
 r3 :- \+huc, \+wet.
 
-% the following utility parameters are incorrect and should be learned.
+
+
+utility(r3, -5).
+utility(move, 6).
+utility(buyc, -6).
+utility(office, -4).
+utility(getu, 7).
 utility(r0, -5).
-utility(r1, 2).
-utility(r3, 5).
-utility(wet, 7).
-utility(office, 1).
-utility(getu, -10).
-utility(buyc, 4).
+utility(delc, 6).
+utility(r1, -1).
+?::move; ?::delc; ?::buyc; ?::getu.
