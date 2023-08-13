@@ -163,8 +163,9 @@ def evaluate_states(db: ClauseDB,
         _reward += reward_dict["r0"] * is_r0
         _reward += reward_dict["r1"] * is_r1
         _reward += reward_dict["r3"] * is_r3
-        _reward += reward_dict["wet"] * ("wet" in _state)
         _reward += reward_dict["office"] * ("office" in _state)
+        _reward += reward_dict["move"] * ("move" in _action)
+        _reward += reward_dict["delc"] * ("delc" in _action)
         _reward += reward_dict["getu"] * ("getu" in _action)
         _reward += reward_dict["buyc"] * ("buyc" in _action)
         return _reward

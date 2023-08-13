@@ -66,8 +66,9 @@ def _compute_and_set_rewards(db: ClauseDB, dataset):
         reward += is_r0 * reward_dict[Term("r0")]
         reward += is_r1 * reward_dict[Term("r1")]
         reward += is_r3 * reward_dict[Term("r3")]
-        reward += state[Term("wet")] * reward_dict[Term("wet")]
         reward += state[Term("office")] * reward_dict[Term("office")]
+        reward += actions[Term("move")] * reward_dict[Term("move")]
+        reward += actions[Term("delc")] * reward_dict[Term("delc")]
         reward += actions[Term("getu")] * reward_dict[Term("getu")]
         reward += actions[Term("buyc")] * reward_dict[Term("buyc")]
         return reward
@@ -283,9 +284,8 @@ def get_random_reward_dict(low_val=-10, high_val=10) -> Dict[Term, float]:
     # WARNING: the reward function's structure is hardcoded in _hardcoded_reward_func
     # do not change this set below without considering other code!
     reward_terms = {
-        Term("r0"), Term("r1"), Term("r3"),
-        Term("wet"), Term("office"),
-        Term("getu"), Term("buyc"),
+        Term("r0"), Term("r1"), Term("r3"),Term("office"),
+        Term("move"), Term("delc"), Term("getu"), Term("buyc"),
     }
     # to avoid reward 0, we create a sequence of all but 0
     reward_set = list(range(low_val, high_val, 1))
@@ -327,7 +327,6 @@ def read_db_from_path(filepath):
 
 
 def main(argv):
-    print(argv)
     print("Warning, hardcoded reward function.")  # cf. _hardcoded_reward_func
     args = argparser().parse_args(argv)
 
