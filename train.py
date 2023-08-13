@@ -163,7 +163,7 @@ def prepare_dataset(dataset: List[LearnTrajectoryInstance]) -> Tuple[Dict[str, t
     return x, y, id2statevar, id2actvar
 
 def perform_learning(args):
-    tf.random.set_seed(args.seed)
+    # tf.random.set_seed(args.seed)
     with open(args.train_file, 'rb') as f:
         train_dataset = pickle.load(f)
 
@@ -173,7 +173,7 @@ def perform_learning(args):
     # x = (initial state, list of actions)
     # y = list of observed rewards corresponding to the list of states
     x, y, id2statevar, id2actvar = prepare_dataset(train_dataset)
-    train(args.ddn_file, x, y, id2statevar, id2actvar, args.lr, args.epochs, args.batch_size, dataset_name)
+    train(args.ddn_file, x, y, id2statevar, id2actvar, args.lr, args.epochs, len(train_dataset), dataset_name)
 
     #TODO: evaluation
 
@@ -188,8 +188,8 @@ if __name__ == '__main__':
     # parser.add_argument('valid_file', type=str, help="Validation data path")
     # parser.add_argument('model_dir', type=str, help="Model directory")
     parser.add_argument('epochs', type=int, help="Num. of training epochs")
-    parser.add_argument('batch_size', type=int, help="Batch size")
-    parser.add_argument('seed', type=int, help="Seed number")
+    # parser.add_argument('batch_size', type=int, help="Batch size")
+    # parser.add_argument('seed', type=int, help="Seed number")
 
     parser.add_argument('--lr', type=float, default=1,
                         help="ADAM's learning rate")
