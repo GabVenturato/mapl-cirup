@@ -211,43 +211,53 @@ def print_err_per_state(err_per_state, utility_per_state_true, utility_per_state
 
 def main():
     # extract results
-    with open("examples_learning/log_30epochs_0.1lr_dataset_n100_trajlen5_seed42.pickle", 'rb') as f:
-        results = pickle.load(f)
-        learned_params, losses, learned_param_names = results
-    # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
-    learned_dict = create_param_dict(learned_params[-1], learned_param_names)
+    all_losses = []
+    all_avg_rel_errors = []
+    all_avg_state_error_per_epoch = []
+    for s in range(1,11):
+        with open(f"examples_learning/coffee2_123/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
+            results = pickle.load(f)
+            learned_params, losses, learned_param_names = results
+        # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
+        learned_dict = create_param_dict(learned_params[-1], learned_param_names)
 
-    # extract true parameters
-    true_filepath = "examples_learning/coffee_v6_learn_true.pl"
-    model = PrologFile(true_filepath)
-    db = DefaultEngine().prepare(model)
-    true_dict = get_reward_params_from_db(db)
-    true_dict = {str(p): v for (p,v) in true_dict.items()}
+        # extract true parameters
+        true_filepath = "examples_learning/coffee2_123/coffee2_true.pl"
+        model = PrologFile(true_filepath)
+        db = DefaultEngine().prepare(model)
+        true_dict = get_reward_params_from_db(db)
+        true_dict = {str(p): v for (p,v) in true_dict.items()}
 
-    # evaluation
-    print_evaluation(learned_dict, true_dict)
+        # evaluation
+        print_evaluation(learned_dict, true_dict)
 
-    # plots
-    true_list = param_dict_to_list(param_dict=true_dict, new_order=learned_param_names)
-    rel_errors = get_rel_errors(learned_params, true_list)
-    avg_rel_errors = np.average(rel_errors, axis=1)
-    # plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
+        # plots
+        true_list = param_dict_to_list(param_dict=true_dict, new_order=learned_param_names)
+        rel_errors = get_rel_errors(learned_params, true_list)
+        avg_rel_errors = np.average(rel_errors, axis=1)
+        # plot_loss_and_rel_error(losses[:-1], avg_rel_errors[:-1])
 
-    print("============= utility per state =============")
-    # compute utilities of states
-    utility_per_state_learned = evaluate_states(db, learned_params[:-1], learned_param_names)
-    utility_per_state_learned = np.array(utility_per_state_learned)
-    utility_per_state_true = evaluate_states(db, true_list, learned_param_names)
-    utility_per_state_true = np.array(utility_per_state_true, dtype=np.float32).reshape(-1, 1)
-    # reshape is needed to change (256,) into (256,1) so that we can perform operations between
-    # utility_per_state_learned and utility_per_state_true
-    err_per_state = utility_per_state_learned - utility_per_state_true
+        print("============= utility per state =============")
+        # compute utilities of states
+        utility_per_state_learned = evaluate_states(db, learned_params[:-1], learned_param_names)
+        utility_per_state_learned = np.array(utility_per_state_learned)
+        utility_per_state_true = evaluate_states(db, true_list, learned_param_names)
+        utility_per_state_true = np.array(utility_per_state_true, dtype=np.float32).reshape(-1, 1)
+        # reshape is needed to change (256,) into (256,1) so that we can perform operations between
+        # utility_per_state_learned and utility_per_state_true
+        err_per_state = utility_per_state_learned - utility_per_state_true
+        # rel_err_per_state = err_per_state / utility_per_state_true
 
-    print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned)
+        # print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned)
+
+        avg_state_error_per_epoch = np.average(abs(err_per_state), axis=0)
+
+        all_losses.append(losses[:-1])
+        all_avg_rel_errors.append(avg_rel_errors[:-1])
+        all_avg_state_error_per_epoch.append(avg_state_error_per_epoch)
 
     # plot state errors
-    avg_state_error_per_epoch = np.average(abs(err_per_state), axis=0)
-    plot_loss_and_rel_errors(losses[:-1], avg_rel_errors[:-1], avg_state_error_per_epoch)
+    plot_loss_and_rel_errors(np.average(all_losses, axis=0), np.average(all_avg_rel_errors, axis=0), np.average(all_avg_state_error_per_epoch, axis=0))
 
 
 if __name__ == '__main__':
