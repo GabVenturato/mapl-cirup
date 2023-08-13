@@ -1,11 +1,11 @@
+import os
 import pickle
 import sys
 import random
-from typing import Set, List, Dict, Tuple
+from typing import Set, List, Dict
 
-from problog import get_evaluatable
+
 from problog.clausedb import ClauseDB
-from problog.formula import LogicFormula
 from problog.logic import Term, Constant, Clause, Not, And, AnnotatedDisjunction
 from problog.program import PrologFile
 from problog.engine import DefaultEngine
@@ -49,9 +49,10 @@ def get_reward_dict(db: ClauseDB) -> Dict[Term, int]:
     reward_dict = dict(db.engine.query(db, Term("utility", None, None)))
     return {x: v.functor for (x, v) in reward_dict.items()}
 
+
 def _compute_and_set_rewards(db: ClauseDB, dataset):
     reward_dict = get_reward_dict(db)
-    decisions: List[Set[Term]] = get_decision_terms(db)
+    # decisions: List[Set[Term]] = get_decision_terms(db)
 
     def _hardcoded_reward_func(state, actions):
         # r0 :- huc, wet.
@@ -74,7 +75,6 @@ def _compute_and_set_rewards(db: ClauseDB, dataset):
     for inst in dataset:
         inst.rewards = []
         for index in range(0, len(inst.trajectory)-1):  # last state is irrelevant.
-
             # compute reward based on previous state (index) and its actions.
             # set previous and current states as observed state_var and state_var_next,
             transition_reward = _hardcoded_reward_func(inst.trajectory[index], inst.actions[index])
@@ -150,7 +150,7 @@ def create_dataset(db: ClauseDB, nb_samples: int = 5, trajectory_length: int = 3
 def create_samples(db: ClauseDB, nb_samples=5, trajectory_length=3, init_seed=None):
     # fix init_seed
     if init_seed is None:
-        init_seed = random.randint(0,20000000000)
+        init_seed = random.randint(0, 20000000000)
 
     # get relevant atoms
     decisions: List[Set[Term]] = get_decision_terms(db)
@@ -167,9 +167,8 @@ def create_samples(db: ClauseDB, nb_samples=5, trajectory_length=3, init_seed=No
             # AD
             nb_vars = len(decision_set)
             prob_per_var = Constant(1.0 / nb_vars)
-            AD_heads = list({d.with_probability(prob_per_var) for d in decision_set})
-            AD = AnnotatedDisjunction(heads=AD_heads, body=Term("true"))
-            db2.add_clause(AD)
+            ad_heads = list({d.with_probability(prob_per_var) for d in decision_set})
+            db2.add_clause(AnnotatedDisjunction(heads=ad_heads, body=Term("true")))
 
     # Turn each state variable into a uniform probabilistic fact.
     for state_var in state_vars:
@@ -252,80 +251,211 @@ def _create_samples_trajectory_aux(
     return trajectory, actions
 
 
-def create_true_instance():
-    return None
+def _generate_trajectories(db: ClauseDB,
+                           nb_samples: int,
+                           traj_length: int):
+    """
+
+    :param db: A ProbLog program containing utility statements with true utilities.
+    It must not contain any decision statements.
+    It must contain state_variables(wet, raining,...). and decisions(move, delc, ...).
+    :param nb_samples: number of trajectory samples to generate
+    :param traj_length: Trajectory length, counting the initial and last state.
+    :return:
+    """
+    # get sample trajectories
+    # db can't have decisions yet, because does not know how to sample.
+    dataset = create_dataset(db=db, nb_samples=nb_samples, trajectory_length=traj_length)
+    return dataset
 
 
-def create_learn_instance():
-    return None
+def _add_reward_function(db: ClauseDB, reward_dict: Dict[Term, float]):
+    """ Add the given reward function to the given db. """
+    for reward_term, reward_value in reward_dict.items():
+        db.add_fact(Term("utility", reward_term, Constant(reward_value)))
+
+
+def get_random_reward_dict(low_val=-10, high_val=10) -> Dict[Term, float]:
+    """ Get random reward dict with each value in [low_val, high_val]. """
+    # WARNING: the reward function's structure is hardcoded in _hardcoded_reward_func
+    # do not change this set below without considering other code!
+    reward_terms = {
+        Term("r0"), Term("r1"), Term("r3"),
+        Term("wet"), Term("office"),
+        Term("getu"), Term("buyc"),
+    }
+    # to avoid reward 0, we create a sequence of all but 0
+    reward_set = list(range(low_val, high_val, 1))
+    reward_set.remove(0)
+    rewards_sampled = random.choices(reward_set, k=len(reward_terms))
+    reward_dict = {r_term: rewards_sampled[idx] for (idx, r_term) in enumerate(reward_terms)}
+    return reward_dict
+
+
+def _add_decisions(db: ClauseDB):
+    """
+    Add decisions to db.
+    Uses decisions(move, delc, ...) present in the db to determine the decisions.
+    :param db:
+    """
+    decisions: List[Set[Term]] = get_decision_terms(db)
+    dec_prob = Term("?")
+    for decision_set in decisions:
+        if len(decision_set) == 1:
+            decision = decision_set.pop()
+            db.add_fact(decision.with_probability(dec_prob))
+        else:
+            # AD
+            AD_heads = list({d.with_probability(dec_prob) for d in decision_set})
+            AD = AnnotatedDisjunction(heads=AD_heads, body=Term("true"))
+            db.add_clause(AD)
 
 
 def main(argv):
+    print(argv)
     print("Warning, hardcoded reward function.")  # cf. _hardcoded_reward_func
     args = argparser().parse_args(argv)
-    model_filepath = args.file
-    model = PrologFile(model_filepath)
 
+    # settings
+    # settings - action
+    action_create_dataset = args.create_dataset
+    action_create_true_model = args.create_true_model
+    action_create_init_model = args.create_init_model
+    if not any([action_create_dataset, action_create_true_model, action_create_init_model]):
+        print("No generate action was selected! Use --help to to see what args to use.")
+        return
+
+    # settings - filepaths
+    filepath_blank_model = args.blank_input_filepath  # no decisions, no utilities
+    if filepath_blank_model is None and (action_create_true_model or action_create_init_model):
+        print("blank_input_filepath is required when creating a true or initial model.",
+              file=sys.stderr)
+        return
+    filepath_true_model = args.true_filepath  # complete, true
+    if filepath_true_model is None and action_create_true_model:
+        print("true_filepath is required when creating a true model.",
+              file=sys.stderr)
+        return
+    filepath_true_wo_dec = args.true_wo_dec_filepath  # true utility but no decisions
+    if filepath_true_wo_dec is None and (action_create_true_model or action_create_dataset):
+        print("true_wo_dec_filepath is required when creating a true model or dataset.",
+              file=sys.stderr)
+        return
+    filepath_init_model = args.init_filepath
+    if filepath_init_model is None and action_create_init_model:
+        print("init_filepath is required when creating an initial model",
+              file=sys.stderr)
+        return
+    filepath_traj_folder = args.dataset_folder
+
+    # settings - parameters
     n = args.dataset_size
-    traj_length = args.trajectory_length
-    dataset_trajectory_filepath = f"./dataset_n{n}_trajlen{traj_length}_seed{args.seed}.pickle"
-    random.seed(a=args.seed)
+    traj_length = args.traj_length
+    seed_dataset = args.seed_traj
+    seed_true = args.seed_true
+    seed_init = args.seed_init
+    database_filename = f"dataset_n{n}_trajlen{traj_length}_seed{seed_dataset}.pickle"
+    filepath_traj_database = os.path.join(filepath_traj_folder, database_filename)
 
-    # Prepare engine
-    engine = DefaultEngine()
-    db = engine.prepare(model)
-    db_blank = db.extend()
-    # Determine true reward function
-    #TODO: temp hardcoded solution
-    reward_dict = {
-        Term("r0"): Constant(3),
-        Term("r1"): Constant(10),
-        Term("r3"): Constant(-2),
-        Term("wet"): Constant(-3),
-        Term("office"): Constant(-1),
-        Term("getu"): Constant(-1),
-        Term("buyc"): Constant(-5),
-    }
-    # Add true reward function
-    for reward_term, reward in reward_dict.items():
-        db.add_fact(Term("utility", reward_term, reward))
+    # create true model without decisions
+    # i.e., fill in a reward function
+    if action_create_true_model:
+        print("Generating true .pl files (chooses reward function).")
+        random.seed(a=seed_true)
+        db = DefaultEngine().prepare(PrologFile(filepath_blank_model))
+        db_true_wo_dec = db.extend()
+        reward_dict_true = get_random_reward_dict()
+        _add_reward_function(db_true_wo_dec, reward_dict_true)
+        with open(filepath_true_wo_dec, "w") as f:
+            f.write(db_true_wo_dec.to_prolog())
 
-    # get sample trajectories
+        db_true = db_true_wo_dec.extend()
+        _add_decisions(db_true)
+        with open(filepath_true_model, "w") as f:
+            f.write(db_true.to_prolog())
+        print("\tdone.")
+        del db_true
+        del db_true_wo_dec
+
+    # sample trajectories with rewards
     # db can't have decisions yet, because does not know how to sample.
-    dataset = create_dataset(db=db, nb_samples=n, trajectory_length=traj_length)
-    with open(dataset_trajectory_filepath, "wb") as f:
-        pickle.dump(dataset, f)
+    # it should have the true reward dictionary already though.
+    if action_create_dataset:
+        print(f"Generating dataset of {n} trajectories, of size {traj_length}.")
+        random.seed(a=seed_dataset)
+        db_true_wo_dec = DefaultEngine().prepare(PrologFile(filepath_true_wo_dec))
+        dataset = _generate_trajectories(db=db_true_wo_dec, nb_samples=n, traj_length=traj_length)
+        with open(filepath_traj_database, "wb") as f:
+            pickle.dump(dataset, f)
+        print(f"\tdone.")
+        # for inst in dataset:
+        #     print(inst)
+        del db_true_wo_dec
+        del dataset
 
-    # print("--------")
-    for inst in dataset:
-        print(inst)
-
-    # create_true_instance
-        # create decision ADs
-        # create utility values
-
-    # create_true_instance(db)
-
-
-# 1. create true instance (i.e. a certain utility parameter)
-#   a. create probabilistic fact (p=0.5) for each state variable
-#   b. change utility parameters to something from a uniform distribution
-# 2. sample trajectory from the true instance, with utilities
-#       sample first state + action: determine reward
-#       sample second state based on first state + action:
-# 3. create blank template
-# 4. create
+    # create initial learning template
+    if action_create_init_model:
+        print(f"Generating initial learning .pl files (chooses random reward function).")
+        random.seed(a=seed_init)
+        db = DefaultEngine().prepare(PrologFile(filepath_blank_model))
+        reward_dict_true = get_random_reward_dict()
+        _add_reward_function(db, reward_dict_true)
+        _add_decisions(db)
+        with open(filepath_init_model, "w") as f:
+            f.write(db.to_prolog())
+        print("\tdone.")
+        del db
 
 
 def argparser():
     import argparse
 
     parser = argparse.ArgumentParser(description="Create dataset for learning")
-    parser.add_argument('dataset_size', type=int, help="Size of the dataset")
-    parser.add_argument('trajectory_length', type=int, help="Length of each trajectory in the dataset")
-    parser.add_argument('-f', '--file', help='Path to the input file', required=True)
-    # parser.add_argument('-v', '--verbose', help='Verbose mode')
-    parser.add_argument('-s', '--seed', help='which seed to use', type=int, default=1000)
+    # dataset
+    parser.add_argument('--dataset_size', type=int, required=False,
+                        help="Size of the dataset", default=10)
+    parser.add_argument('--traj_length', type=int, required=False,
+                        help="Length of each trajectory in the dataset", default=5)
+    parser.add_argument('-s', '--seed_traj',
+                        help='seed used to generate trajectories',
+                        type=int, default=1000)
+    parser.add_argument('-d', "--create_dataset", action='store_true',
+                        help="indicates that the trajectory dataset must be created. ")
+
+    # generate true file
+    parser.add_argument('--seed_true',
+                        help='seed used to generate random true utility function',
+                        type=int, default=27854867)
+    parser.add_argument('-t', "--create_true_model", action='store_true',
+                        help="indicates that a true model must be created. ")
+
+    # generate init file
+    parser.add_argument('--seed_init',
+                        help='seed used to generate random initial utility functions',
+                        type=int, default=1757887)
+    parser.add_argument('-i', "--create_init_model", action='store_true',
+                        help="indicates that an initial model must be created. ")
+
+    # filepaths
+    parser.add_argument('--blank_input_filepath', required=False,
+                        help="Filepath to .pl containing the coffee example without "
+                             "utility, nor decisions."
+                             "REQUIRED when creating: true model, or initial model")
+    parser.add_argument('--true_filepath', required=False,
+                        help="Filepath to write the true .pl model to. "
+                             "REQUIRED when creating: true model")
+    parser.add_argument('--true_wo_dec_filepath', required=False,
+                        help="Filepath of the true .pl model but without decisions. "
+                             "REQUIRED when creating: true_model, or dataset")
+    parser.add_argument('--init_filepath', required=False,
+                        help="Filepath to write the initial .pl model to. "
+                             "REQUIRED when creating: initial model")
+    parser.add_argument('--dataset_folder', required=False,
+                        help="Filepath of the folder where to write the dataset to. ",
+                        default="./")
+    # parser.add_argument('--dataset_filepath', required=False,
+    #                     help="Filepath of write the dataset to. "
+    #                          "REQUIRED when creating: dataset")
     return parser
 
 
