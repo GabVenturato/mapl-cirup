@@ -108,7 +108,7 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
 
     color = 'tab:blue'
     ax1.set_xlabel('Iterations')
-    ax1.set_ylabel('Loss', color=color)
+    ax1.set_ylabel('loss', color=color)
     ax1.plot(iterations, loss, label="loss", color=color, linestyle="solid")
 
     color = 'tab:green'
@@ -118,7 +118,7 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
 
     color = "tab:orange"
     ax3.set_ylabel('state errors', color=color)
-    ax3.plot(iterations, avg_state_errors, label="average state error", color=color,
+    ax3.plot(iterations, avg_state_errors, label="average absolute state error", color=color,
              linestyle='dotted')
 
     fig.legend(loc="upper center", bbox_to_anchor=[0.64, 0.94])
