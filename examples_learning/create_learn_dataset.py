@@ -269,10 +269,13 @@ def _generate_trajectories(db: ClauseDB,
     return dataset
 
 
-def _add_reward_function(db: ClauseDB, reward_dict: Dict[Term, float]):
-    """ Add the given reward function to the given db. """
+def _add_reward_function(db: ClauseDB, db_str: str, reward_dict: Dict[Term, float]):
+    """ Add the given reward function to the given db and db_str """
+    new_str = db_str
     for reward_term, reward_value in reward_dict.items():
         db.add_fact(Term("utility", reward_term, Constant(reward_value)))
+        new_str = new_str + f"utility({str(reward_term)}, {reward_value}).\n"
+    return db, new_str
 
 
 def get_random_reward_dict(low_val=-10, high_val=10) -> Dict[Term, float]:
@@ -292,23 +295,35 @@ def get_random_reward_dict(low_val=-10, high_val=10) -> Dict[Term, float]:
     return reward_dict
 
 
-def _add_decisions(db: ClauseDB):
+def _add_decisions(db: ClauseDB, db_str: str):
     """
     Add decisions to db.
     Uses decisions(move, delc, ...) present in the db to determine the decisions.
-    :param db:
     """
+    new_str = db_str
     decisions: List[Set[Term]] = get_decision_terms(db)
     dec_prob = Term("?")
+    dec_prob_str = str(dec_prob)
     for decision_set in decisions:
         if len(decision_set) == 1:
             decision = decision_set.pop()
             db.add_fact(decision.with_probability(dec_prob))
+            new_str = new_str + f"{dec_prob_str}::{str(decision)}.\n"
         else:
             # AD
             AD_heads = list({d.with_probability(dec_prob) for d in decision_set})
             AD = AnnotatedDisjunction(heads=AD_heads, body=Term("true"))
             db.add_clause(AD)
+            new_str = (new_str + "; ".join((f"{dec_prob_str}::{str(d)}" for d in decision_set)) +
+                       ".\n")
+    return db, new_str
+
+
+def read_db_from_path(filepath):
+    db = DefaultEngine().prepare(PrologFile(filepath))
+    with open(filepath, 'r') as f:
+        db_str = f.read()
+    return db, db_str
 
 
 def main(argv):
@@ -362,17 +377,17 @@ def main(argv):
     if action_create_true_model:
         print("Generating true .pl files (chooses reward function).")
         random.seed(a=seed_true)
-        db = DefaultEngine().prepare(PrologFile(filepath_blank_model))
-        db_true_wo_dec = db.extend()
+        db, db_str = read_db_from_path(filepath_blank_model)
         reward_dict_true = get_random_reward_dict()
-        _add_reward_function(db_true_wo_dec, reward_dict_true)
+        db_true_wo_dec, db_str = _add_reward_function(db, db_str, reward_dict_true)
         with open(filepath_true_wo_dec, "w") as f:
-            f.write(db_true_wo_dec.to_prolog())
+            # f.write(db_true_wo_dec.to_prolog())
+            f.write(db_str)
 
-        db_true = db_true_wo_dec.extend()
-        _add_decisions(db_true)
+        db_true, db_str = _add_decisions(db_true_wo_dec, db_str)
         with open(filepath_true_model, "w") as f:
-            f.write(db_true.to_prolog())
+            # f.write(db_true.to_prolog())
+            f.write(db_str)
         print("\tdone.")
         del db_true
         del db_true_wo_dec
@@ -397,12 +412,13 @@ def main(argv):
     if action_create_init_model:
         print(f"Generating initial learning .pl files (chooses random reward function).")
         random.seed(a=seed_init)
-        db = DefaultEngine().prepare(PrologFile(filepath_blank_model))
+        db, db_str = read_db_from_path(filepath_blank_model)
         reward_dict_true = get_random_reward_dict()
-        _add_reward_function(db, reward_dict_true)
-        _add_decisions(db)
+        db, db_str = _add_reward_function(db, reward_dict_true)
+        db, db_str = _add_decisions(db, db_str)
         with open(filepath_init_model, "w") as f:
-            f.write(db.to_prolog())
+            # f.write(db.to_prolog())
+            f.write(db_str)
         print("\tdone.")
         del db
 
