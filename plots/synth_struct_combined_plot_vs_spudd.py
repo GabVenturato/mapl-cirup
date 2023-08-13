@@ -69,9 +69,11 @@ def _get_synth_cross_stitch_data():
 
 def create_plot(out_filename=None):
     color_spudd = "tab:red"
+    color_spudd_improv = "tab:orange"
     color_mapl_vi = "tab:blue"
     color_mapl_kcvi = "tab:green"
     label_spudd = "SPUDD"
+    label_spudd_improv = "SPUDD-isd"
     label_mapl_vi = "\\texttt{mapl-cirup} (VI)"
     label_mapl_kcvi = "\\texttt{mapl-cirup} (KC+VI)"
 
@@ -100,17 +102,24 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[0].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
+    data_spudd = data_cross_stitch[data_cross_stitch["solver"] == "spudd-improv"]
+    data_spudd = data_spudd.replace(0, 0.001)  # Can't be zero the time. SPUDD precision is too low.
+    x = data_spudd["var_num"]
+    y = data_spudd["time"]
+    assert len(x) > 0
+    axs[0].plot(x, y, color=color_spudd_improv, marker="D", markersize=4, label=label_spudd_improv)
+
     data_mapl_vi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (vi)"]
     x = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 8, 'var_num']
     y = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 8, 'time']
     assert len(x) > 0
-    axs[0].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
+    axs[0].plot(x, y, color=color_mapl_vi, marker="^", markersize=4, label=label_mapl_vi)
 
     data_mapl_kcvi = data_cross_stitch[data_cross_stitch["solver"] == "maple-cirup (kc+vi)"]
     x = data_mapl_kcvi["var_num"]
     y = data_mapl_kcvi["time"]
     assert len(x) > 0
-    axs[0].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
+    axs[0].plot(x, y, color=color_mapl_kcvi, marker="s", markersize=4, label=label_mapl_kcvi)
 
     axs[0].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
@@ -130,17 +139,24 @@ def create_plot(out_filename=None):
     assert len(x) > 0
     axs[1].plot(x, y, color=color_spudd, marker=".", label=label_spudd)
 
+    data_spudd = data_chain[data_chain["solver"] == "spudd-improv"]
+    data_spudd = data_spudd.replace(0, 0.001)  # Can't be zero the time. SPUDD precision is too low.
+    x = data_spudd["var_num"]
+    y = data_spudd["time"]
+    assert len(x) > 0
+    axs[1].plot(x, y, color=color_spudd_improv, marker="D", markersize=4, label=label_spudd_improv)
+
     data_mapl_vi = data_chain[data_chain["solver"] == "maple-cirup (vi)"]
     x = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'var_num']
     y = data_mapl_vi.loc[data_mapl_vi['var_num'] <= 6, 'time']
     assert len(x) > 0
-    axs[1].plot(x, y, color=color_mapl_vi, marker=".", label=label_mapl_vi)
+    axs[1].plot(x, y, color=color_mapl_vi, marker="^", markersize=4, label=label_mapl_vi)
 
     data_mapl_kcvi = data_chain[data_chain["solver"] == "maple-cirup (kc+vi)"]
     x = data_mapl_kcvi["var_num"]
     y = data_mapl_kcvi["time"]
     assert len(x) > 0
-    axs[1].plot(x, y, color=color_mapl_kcvi, marker=".", label=label_mapl_kcvi)
+    axs[1].plot(x, y, color=color_mapl_kcvi, marker="s", markersize=4, label=label_mapl_kcvi)
 
     axs[1].axhline(y=TIMEOUT, color="gray", linestyle="dashed")
     #axs[0].text(2, TIMEOUT+100, "timeout (600s)", rotation=0)
@@ -158,7 +174,7 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=3, frameon=False, fancybox=False, shadow=False)
+    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=4, frameon=False, fancybox=False, shadow=False)
     fig.tight_layout()
     plt.subplots_adjust(wspace=0.03)
     if out_filename is None:
