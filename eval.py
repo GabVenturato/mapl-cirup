@@ -98,7 +98,7 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     assert len(loss) == len(avg_state_errors)
     iterations = range(len(loss))
 
-    figsize = 7, 4 # width , height
+    figsize = 5, 3.5 # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
@@ -112,16 +112,16 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     ax1.plot(iterations, loss, label="loss", color=color, linestyle="solid")
 
     color = 'tab:green'
-    ax2.set_ylabel('errors', color=color)
-    ax2.plot(iterations, avg_rel_errors, label="average relative error", color=color,
+    ax2.set_ylabel('parameter error', color=color)
+    ax2.plot(iterations, avg_rel_errors, label="avg relative error", color=color,
              linestyle='dashed')
 
     color = "tab:orange"
-    ax3.set_ylabel('state errors', color=color)
-    ax3.plot(iterations, avg_state_errors, label="average absolute state error", color=color,
+    ax3.set_ylabel('state error', color=color)
+    ax3.plot(iterations, avg_state_errors, label="avg absolute state error", color=color,
              linestyle='dotted')
 
-    fig.legend(loc="upper center", bbox_to_anchor=[0.64, 0.94])
+    fig.legend(loc="upper right", bbox_to_anchor=[0.75, 0.94])
     fig.tight_layout()
     plt.savefig("loss_avg_rel_errors.pdf", format="pdf", bbox_inches='tight')
     plt.show()
