@@ -1,3 +1,4 @@
+import os
 import random
 
 import create_learn_dataset as our_generator
@@ -22,17 +23,21 @@ trajectory_length = 10
 nb_init_models = 10
 seed_true = 123
 seed_traj = 1000
+exp_folder = f"./{exp_version}_{seed_true}"
+
+if not os.path.exists(exp_folder):
+    os.makedirs(exp_folder)
 
 # create true and dataset
 args = [
     "-t", # true model
     "--seed_true", f"{seed_true}",
     "--blank_input_filepath", f"{filepath_blank}",
-    "--true_filepath", f"./{exp_version}_{seed_true}/{exp_version}_true.pl",
-    "--true_wo_dec_filepath", f"./{exp_version}_{seed_true}/{exp_version}_true_wo_dec.pl",
+    "--true_filepath", f"{exp_folder}/{exp_version}_true.pl",
+    "--true_wo_dec_filepath", f"{exp_folder}/{exp_version}_true_wo_dec.pl",
     "-d", # dataset
     "--seed_traj", f"{seed_traj}",
-    "--dataset_folder", f"./{exp_version}_{seed_true}/",
+    "--dataset_folder", f"{exp_folder}/",
     "--dataset_size", f"{nb_trajectories}",
     "--traj_length", f"{trajectory_length}",
 ]
@@ -45,7 +50,7 @@ for idx in range(nb_init_models):
     args = [
         "-i",  # init
         "--seed_init", f"{init_seed}",
-        "--init_filepath", f"./{exp_version}_{seed_true}/{exp_version}_init{init_seed}.pl",
+        "--init_filepath", f"{exp_folder}/{exp_version}_init{init_seed}.pl",
         "--blank_input_filepath", f"{filepath_blank}"
     ]
     our_generator.main(args)
