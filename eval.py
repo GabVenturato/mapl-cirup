@@ -288,22 +288,24 @@ def main():
     all_avg_rel_errors = []
     all_avg_state_error_per_epoch = []
 
+    epochs = 50
+    batch_size = 10
+    dataset_size = 100
+    trajlen = 5
+    dataset_seed = 1002
+    coffee_version = "coffee2_123"
+
     # extract true parameters
-    true_filepath = "examples_learning/coffee2_123/coffee2_true.pl"
+    true_filepath = f"examples_learning/{coffee_version}/coffee2_true.pl"
     model = PrologFile(true_filepath)
     db = DefaultEngine().prepare(model)
     true_dict = get_reward_params_from_db(db)
     true_dict = {str(p): v for (p, v) in true_dict.items()}
 
     # go over each of the 10 learning runs (each a diff initial starting point)
-    epochs = 50
-    batch_size = 10
-    dataset_size = 100
-    trajlen = 5
-    dataset_seed = 1002
     for s in range(1, 11):
         filename = f'log_{epochs}epochs_0.1lr_{batch_size}bs_{s}seed_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}.pickle'
-        with open(f"examples_learning/coffee2_123/{filename}", 'rb') as f:
+        with open(f"examples_learning/{coffee_version}/{filename}", 'rb') as f:
             results = pickle.load(f)
             learned_params, losses, learned_param_names = results
         # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
