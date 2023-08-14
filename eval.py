@@ -128,7 +128,7 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     plt.show()
 
 
-def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_list):
+def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_list, plotname):
     """
         each arg list contains the actual values for each of the 10 learning datapoints.
         For example, loss_list is a list of size 10, each containing the loss of that learning point.
@@ -195,7 +195,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
 
     fig.legend(loc="upper right", bbox_to_anchor=[0.75, 0.94])
     fig.tight_layout()
-    plt.savefig("loss_avg_rel_errors.pdf", format="pdf", bbox_inches='tight')
+    plt.savefig(f"plots/{plotname}.pdf", format="pdf", bbox_inches='tight')
     plt.show()
 
 
@@ -289,15 +289,21 @@ def main():
     all_avg_state_error_per_epoch = []
 
     # extract true parameters
-    true_filepath = "examples_learning/coffee2_123_old/coffee2_true.pl"
+    true_filepath = "examples_learning/coffee2_123/coffee2_true.pl"
     model = PrologFile(true_filepath)
     db = DefaultEngine().prepare(model)
     true_dict = get_reward_params_from_db(db)
     true_dict = {str(p): v for (p, v) in true_dict.items()}
 
     # go over each of the 10 learning runs (each a diff initial starting point)
+    epochs = 100
+    batch_size = 5
+    dataset_size = 10
+    trajlen = 10
+    dataset_seed = 1001
     for s in range(1, 11):
-        with open(f"examples_learning/coffee2_123_old/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
+        filename = f'log_{epochs}epochs_0.1lr_{batch_size}bs_{s}seed_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}.pickle'
+        with open(f"examples_learning/coffee2_123/{filename}", 'rb') as f:
             results = pickle.load(f)
             learned_params, losses, learned_param_names = results
         # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
@@ -325,13 +331,14 @@ def main():
 
         # print_err_per_state(err_per_state, utility_per_state_true, utility_per_state_learned)
 
-        avg_state_error_per_epoch = np.average(abs(err_per_state), axis=0)
+        avg_state_error_per_epoch = np.average(abs(rel_err_per_state), axis=0)
 
         all_losses.append(losses[:-1])
         all_avg_rel_errors.append(avg_rel_errors[:-1])
         all_avg_state_error_per_epoch.append(avg_state_error_per_epoch)
 
-    plot_loss_and_error_bands(all_losses, all_avg_rel_errors, all_avg_state_error_per_epoch)
+    plotname = f'plot_{epochs}epochs_0.1lr_{batch_size}bs_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}'
+    plot_loss_and_error_bands(all_losses, all_avg_rel_errors, all_avg_state_error_per_epoch, plotname)
     # plot state errors
     # plot_loss_and_rel_errors(np.average(all_losses, axis=0), np.average(all_avg_rel_errors, axis=0), np.average(all_avg_state_error_per_epoch, axis=0))
 
