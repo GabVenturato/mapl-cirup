@@ -296,11 +296,11 @@ def main():
     true_dict = {str(p): v for (p, v) in true_dict.items()}
 
     # go over each of the 10 learning runs (each a diff initial starting point)
-    epochs = 100
-    batch_size = 5
-    dataset_size = 10
-    trajlen = 10
-    dataset_seed = 1001
+    epochs = 50
+    batch_size = 10
+    dataset_size = 100
+    trajlen = 5
+    dataset_seed = 1002
     for s in range(1, 11):
         filename = f'log_{epochs}epochs_0.1lr_{batch_size}bs_{s}seed_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}.pickle'
         with open(f"examples_learning/coffee2_123/{filename}", 'rb') as f:
