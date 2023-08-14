@@ -295,7 +295,7 @@ def get_random_reward_dict(low_val=1, high_val=10) -> Dict[Term, float]:
     return reward_dict
 
 def get_init_random_reward_dict() -> Dict[Term, float]:
-    return get_random_reward_dict(-30,30)
+    return get_random_reward_dict(-15,15)
 
 
 def _add_decisions(db: ClauseDB, db_str: str):
