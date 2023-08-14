@@ -16,13 +16,13 @@ import create_learn_dataset as our_generator
 --init_filepath "./coffee1_123/coffee1_init2151.pl"
 """
 
-exp_version = "coffee2"
-filepath_blank = "./coffee2_blank.pl"
-nb_trajectories = [10,100,200]
-trajectory_length = [5, 10]
+exp_version = "coffee3"
+filepath_blank = "./coffee3_blank.pl"
+nb_trajectories = [10,100]
+trajectory_length = [5]
 nb_init_models = 10
-seed_true = 123
-seed_traj = 1000
+seed_true = 666
+seed_traj = 1337
 seed_init = 42
 exp_folder = f"./{exp_version}_{seed_true}"
 
