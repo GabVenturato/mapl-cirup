@@ -293,11 +293,13 @@ def main():
     batch_size = 10
     dataset_size = 100
     trajlen = 5
-    dataset_seed = 1002
-    coffee_version = "coffee2_123"
+    dataset_seed = 1338
+    coffee_name = "coffee3"
+    coffee_seed = 666
+    coffee_version = f"{coffee_name}_{coffee_seed}"
 
     # extract true parameters
-    true_filepath = f"examples_learning/{coffee_version}/coffee2_true.pl"
+    true_filepath = f"examples_learning/{coffee_version}/{coffee_name}_true.pl"
     model = PrologFile(true_filepath)
     db = DefaultEngine().prepare(model)
     true_dict = get_reward_params_from_db(db)

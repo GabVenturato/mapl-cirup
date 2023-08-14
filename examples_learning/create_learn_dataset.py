@@ -279,7 +279,7 @@ def _add_reward_function(db: ClauseDB, db_str: str, reward_dict: Dict[Term, floa
     return db, new_str
 
 
-def get_random_reward_dict(low_val=1, high_val=20) -> Dict[Term, float]:
+def get_random_reward_dict(low_val=1, high_val=10) -> Dict[Term, float]:
     """ Get random reward dict with each value in [low_val, high_val]. """
     # WARNING: the reward function's structure is hardcoded in _hardcoded_reward_func
     # do not change this set below without considering other code!
@@ -293,6 +293,9 @@ def get_random_reward_dict(low_val=1, high_val=20) -> Dict[Term, float]:
     rewards_sampled = random.choices(reward_set, k=len(reward_terms))
     reward_dict = {r_term: rewards_sampled[idx] for (idx, r_term) in enumerate(reward_terms)}
     return reward_dict
+
+def get_init_random_reward_dict() -> Dict[Term, float]:
+    return get_random_reward_dict(-30,30)
 
 
 def _add_decisions(db: ClauseDB, db_str: str):
@@ -412,7 +415,7 @@ def main(argv):
         print(f"Generating initial learning .pl files (chooses random reward function).")
         random.seed(a=seed_init)
         db, db_str = read_db_from_path(filepath_blank_model)
-        reward_dict_true = get_random_reward_dict()
+        reward_dict_true = get_init_random_reward_dict()
         db, db_str = _add_reward_function(db, db_str, reward_dict_true)
         db, db_str = _add_decisions(db, db_str)
         with open(filepath_init_model, "w") as f:
