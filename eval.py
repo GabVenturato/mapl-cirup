@@ -153,7 +153,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     iterations = range(len(losses_avg))
 
     plt.style.use("./plots/tex.mplstyle")
-    figsize = 4.5, 3  # width , height
+    figsize = 4.5, 2.5  # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
