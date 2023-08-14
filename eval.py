@@ -153,7 +153,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     iterations = range(len(losses_avg))
 
     plt.style.use("./plots/tex.mplstyle")
-    figsize = 4.5, 3.5  # width , height
+    figsize = 4.5, 3  # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
@@ -162,7 +162,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     ax3.spines["right"].set_position(("axes", 1.2))
 
     color = 'tab:blue'
-    ax1.set_xlabel('Iterations')
+    ax1.set_xlabel('epoch')
     ax1.set_ylabel('loss', color=color)
     ax1.plot(iterations, losses_avg, label="loss", color=color, linestyle="solid")
     losses_l = losses_avg - losses_std
@@ -193,7 +193,8 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     ax3.fill_between(iterations, avg_state_errors_l, avg_state_errors_h, alpha=.3,
                      linewidth=2, color=color)
 
-    fig.legend(loc="upper right", bbox_to_anchor=[0.75, 0.94])
+    ax1.set_xlim(left=0, right=50)
+    fig.legend(loc="upper right", bbox_to_anchor=[0.73, 0.92])
     fig.tight_layout()
     plt.savefig(f"plots/{plotname}.pdf", format="pdf", bbox_inches='tight')
     plt.show()
