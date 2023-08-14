@@ -98,7 +98,8 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     assert len(loss) == len(avg_state_errors)
     iterations = range(len(loss))
 
-    figsize = 5, 3.5 # width , height
+    plt.style.use("./plots/tex.mplstyle")
+    figsize = 4.5, 3.5 # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
@@ -120,6 +121,77 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     ax3.set_ylabel('state error', color=color)
     ax3.plot(iterations, avg_state_errors, label="avg absolute state error", color=color,
              linestyle='dotted')
+
+    fig.legend(loc="upper right", bbox_to_anchor=[0.75, 0.94])
+    fig.tight_layout()
+    plt.savefig("loss_avg_rel_errors.pdf", format="pdf", bbox_inches='tight')
+    plt.show()
+
+
+def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_list):
+    """
+        each arg list contains the actual values for each of the 10 learning datapoints.
+        For example, loss_list is a list of size 10, each containing the loss of that learning point.
+        We plot the average over those 10, as well as the avg + std
+    """
+    assert len(loss_list) == len(avg_rel_errors_list)
+    assert len(loss_list) == len(avg_state_errors_list)
+
+    loss_list = np.array(loss_list)
+    avg_rel_errors_list = np.array(avg_rel_errors_list)
+    avg_state_errors_list = np.array(avg_state_errors_list)
+
+    losses_std = np.std(loss_list, axis=0)
+    losses_avg = np.average(loss_list, axis=0)
+    avg_rel_errors_std = np.std(avg_rel_errors_list, axis=0)
+    avg_rel_errors_avg = np.average(avg_rel_errors_list, axis=0)
+    avg_state_errors_std = np.std(avg_state_errors_list, axis=0)
+    avg_state_errors_avg = np.average(avg_state_errors_list, axis=0)
+
+    assert len(losses_avg) == len(avg_rel_errors_avg)
+    assert len(losses_avg) == len(avg_state_errors_avg)
+    iterations = range(len(losses_avg))
+
+    plt.style.use("./plots/tex.mplstyle")
+    figsize = 4.5, 3.5  # width , height
+    fig, ax1 = plt.subplots(figsize=figsize)
+    fig.subplots_adjust(right=0.75)
+
+    ax2 = ax1.twinx()
+    ax3 = ax1.twinx()
+    ax3.spines["right"].set_position(("axes", 1.2))
+
+    color = 'tab:blue'
+    ax1.set_xlabel('Iterations')
+    ax1.set_ylabel('loss', color=color)
+    ax1.plot(iterations, losses_avg, label="loss", color=color, linestyle="solid")
+    losses_l = losses_avg - losses_std
+    losses_h = losses_avg + losses_std
+    # ax1.plot(iterations, losses_l, color=color, linestyle="solid")
+    # ax1.plot(iterations, losses_h, color=color, linestyle="solid")
+    ax1.fill_between(iterations, losses_l, losses_h, alpha=.3, linewidth=2, color=color)
+
+    color = 'tab:green'
+    ax2.set_ylabel('parameter error', color=color)
+    ax2.plot(iterations, avg_rel_errors_avg, label="avg relative parameter error", color=color,
+             linestyle='dashed')
+    avg_rel_errors_l = avg_rel_errors_avg - avg_rel_errors_std
+    avg_rel_errors_h = avg_rel_errors_avg + avg_rel_errors_std
+    # ax2.plot(iterations, avg_rel_errors_l, color=color, linestyle='dashed')
+    # ax2.plot(iterations, avg_rel_errors_h, color=color, linestyle='dashed')
+    ax2.fill_between(iterations, avg_rel_errors_l, avg_rel_errors_h, alpha=.1,
+                     linewidth=1, color=color)
+
+    color = "tab:orange"
+    ax3.set_ylabel('state error', color=color)
+    ax3.plot(iterations, avg_state_errors_avg, label="avg relative state error", color=color,
+             linestyle='dotted')
+    avg_state_errors_l = avg_state_errors_avg - avg_state_errors_std
+    avg_state_errors_h = avg_state_errors_avg + avg_state_errors_std
+    # ax3.plot(iterations, avg_state_errors_l, color=color, linestyle='dotted')
+    # ax3.plot(iterations, avg_state_errors_h, color=color, linestyle='dotted')
+    ax3.fill_between(iterations, avg_state_errors_l, avg_state_errors_h, alpha=.3,
+                     linewidth=2, color=color)
 
     fig.legend(loc="upper right", bbox_to_anchor=[0.75, 0.94])
     fig.tight_layout()
@@ -209,25 +281,27 @@ def print_err_per_state(err_per_state, utility_per_state_true, utility_per_state
               f"learned ({(utility_per_state_learned[state_idx, -1]):.4f})\t"
               f"abs_error ({abs(err_per_state_last_epoch[state_idx]):.4f})")
 
+
 def main():
     # extract results
     all_losses = []
     all_avg_rel_errors = []
     all_avg_state_error_per_epoch = []
-    for s in range(1,11):
-        with open(
-                f"examples_learning/coffee2_123_old/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
+
+    # extract true parameters
+    true_filepath = "examples_learning/coffee2_123_old/coffee2_true.pl"
+    model = PrologFile(true_filepath)
+    db = DefaultEngine().prepare(model)
+    true_dict = get_reward_params_from_db(db)
+    true_dict = {str(p): v for (p, v) in true_dict.items()}
+
+    # go over each of the 10 learning runs (each a diff initial starting point)
+    for s in range(1, 11):
+        with open(f"examples_learning/coffee2_123_old/log_50epochs_0.1lr_10bs_{s}seed_dataset_n100_trajlen5_seed1000.pickle", 'rb') as f:
             results = pickle.load(f)
             learned_params, losses, learned_param_names = results
         # print(losses[-1])  # the last loss is -1 because I haven't computed yet the true one, you shouldn't need it
         learned_dict = create_param_dict(learned_params[-1], learned_param_names)
-
-        # extract true parameters
-        true_filepath = "examples_learning/coffee2_123_old/coffee2_true.pl"
-        model = PrologFile(true_filepath)
-        db = DefaultEngine().prepare(model)
-        true_dict = get_reward_params_from_db(db)
-        true_dict = {str(p): v for (p,v) in true_dict.items()}
 
         # evaluation
         print_evaluation(learned_dict, true_dict)
@@ -257,8 +331,9 @@ def main():
         all_avg_rel_errors.append(avg_rel_errors[:-1])
         all_avg_state_error_per_epoch.append(avg_state_error_per_epoch)
 
+    plot_loss_and_error_bands(all_losses, all_avg_rel_errors, all_avg_state_error_per_epoch)
     # plot state errors
-    plot_loss_and_rel_errors(np.average(all_losses, axis=0), np.average(all_avg_rel_errors, axis=0), np.average(all_avg_state_error_per_epoch, axis=0))
+    # plot_loss_and_rel_errors(np.average(all_losses, axis=0), np.average(all_avg_rel_errors, axis=0), np.average(all_avg_state_error_per_epoch, axis=0))
 
 
 if __name__ == '__main__':
