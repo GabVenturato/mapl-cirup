@@ -153,7 +153,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     iterations = range(len(losses_avg))
 
     plt.style.use("./plots/tex.mplstyle")
-    figsize = 4.5, 2.5  # width , height
+    figsize = 4.5, 3  # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
@@ -295,7 +295,7 @@ def main():
     trajlen = 5
     dataset_seed = 1338
     coffee_name = "coffee3"
-    coffee_seed = 666
+    coffee_seed = 1994
     coffee_version = f"{coffee_name}_{coffee_seed}"
 
     # extract true parameters
@@ -307,7 +307,7 @@ def main():
 
     # go over each of the 10 learning runs (each a diff initial starting point)
     for s in range(1, 11):
-        filename = f'log_{epochs}epochs_0.1lr_{batch_size}bs_{s}seed_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}.pickle'
+        filename = f'log2_{epochs}epochs_0.1lr_{batch_size}bs_{s}seed_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}.pickle'
         with open(f"examples_learning/{coffee_version}/{filename}", 'rb') as f:
             results = pickle.load(f)
             learned_params, losses, learned_param_names = results
