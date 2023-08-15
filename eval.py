@@ -128,7 +128,7 @@ def plot_loss_and_rel_errors(loss, avg_rel_errors, avg_state_errors):
     plt.show()
 
 
-def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_list, plotname):
+def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_list, plotname, epochs):
     """
         each arg list contains the actual values for each of the 10 learning datapoints.
         For example, loss_list is a list of size 10, each containing the loss of that learning point.
@@ -153,7 +153,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     iterations = range(len(losses_avg))
 
     plt.style.use("./plots/tex.mplstyle")
-    figsize = 4.5, 3  # width , height
+    figsize = 4.5, 2.5  # width , height
     fig, ax1 = plt.subplots(figsize=figsize)
     fig.subplots_adjust(right=0.75)
 
@@ -193,7 +193,7 @@ def plot_loss_and_error_bands(loss_list, avg_rel_errors_list, avg_state_errors_l
     ax3.fill_between(iterations, avg_state_errors_l, avg_state_errors_h, alpha=.3,
                      linewidth=2, color=color)
 
-    ax1.set_xlim(left=0, right=50)
+    ax1.set_xlim(left=0, right=epochs)
     fig.legend(loc="upper right", bbox_to_anchor=[0.73, 0.92])
     fig.tight_layout()
     plt.savefig(f"plots/{plotname}.pdf", format="pdf", bbox_inches='tight')
@@ -294,7 +294,7 @@ def main():
     dataset_size = 100
     trajlen = 5
     dataset_seed = 1338
-    coffee_name = "coffee3"
+    coffee_name = "coffee2"
     coffee_seed = 1994
     coffee_version = f"{coffee_name}_{coffee_seed}"
 
@@ -343,7 +343,7 @@ def main():
         all_avg_state_error_per_epoch.append(avg_state_error_per_epoch)
 
     plotname = f'plot_{epochs}epochs_0.1lr_{batch_size}bs_dataset_n{dataset_size}_trajlen{trajlen}_seed{dataset_seed}'
-    plot_loss_and_error_bands(all_losses, all_avg_rel_errors, all_avg_state_error_per_epoch, plotname)
+    plot_loss_and_error_bands(all_losses, all_avg_rel_errors, all_avg_state_error_per_epoch, plotname, epochs)
     # plot state errors
     # plot_loss_and_rel_errors(np.average(all_losses, axis=0), np.average(all_avg_rel_errors, axis=0), np.average(all_avg_state_error_per_epoch, axis=0))
 
