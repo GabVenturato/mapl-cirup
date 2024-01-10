@@ -174,13 +174,23 @@ def create_plot(out_filename=None):
     # finish
     #
     handles, labels = axs[1].get_legend_handles_labels()
-    fig.legend(handles, labels, bbox_to_anchor=(0.5, 0), loc='upper center', ncol=4, frameon=False, fancybox=False, shadow=False)
+    fig.legend(
+        handles,
+        labels,
+        bbox_to_anchor=(0.5, 0.05),
+        loc='upper center',
+        ncol=2,
+        frameon=False,
+        fancybox=False,
+        shadow=False,
+        fontsize=10,
+        columnspacing=1)
     fig.tight_layout()
     plt.subplots_adjust(wspace=0.03)
     if out_filename is None:
         plt.show()
     else:
-        plt.savefig(out_filename, bbox_inches="tight")
+        plt.savefig(out_filename, bbox_inches="tight", pad_inches=0.01)
 
 
 if __name__ == "__main__":
